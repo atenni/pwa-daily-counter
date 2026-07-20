@@ -1,0 +1,327 @@
+/**
+ * Settings Panel Web Component
+ * A reusable custom element for the Daily Counter PWA settings panel.
+ *
+ * Usage:
+ * <settings-panel>
+ *   <div slot="content">
+ *     <!-- Custom settings content goes here -->
+ *   </div>
+ * </settings-panel>
+ */
+
+export class SettingsPanel extends HTMLElement {
+  private panel: HTMLElement | null = null;
+  private gripper: HTMLElement | null = null;
+  private darkToggleBtn: HTMLButtonElement | null = null;
+  private darkMode: boolean;
+
+  constructor() {
+    super();
+    this.darkMode = document.body.classList.contains("dark");
+    this.attachShadow({ mode: "open" });
+    this.render();
+  }
+
+  static get observedAttributes() {
+    return ["open"];
+  }
+
+  attributeChangedCallback(name: string, oldValue: string, newValue: string) {
+    if (name === "open" && this.panel) {
+      if (newValue !== null) {
+        this.panel.classList.add("open");
+      } else {
+        this.panel.classList.remove("open");
+      }
+    }
+  }
+
+  connectedCallback() {
+    this.setupEventListeners();
+  }
+
+  disconnectedCallback() {
+    this.removeEventListeners();
+  }
+
+  private render() {
+    if (!this.shadowRoot) return;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+        }
+
+        .settings {
+          position: fixed;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          transform: translateY(calc(100% - 40px));
+          height: auto;
+          max-height: 60vh;
+          background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+          border-top: 1px solid rgba(0, 0, 0, 0.1);
+          border-radius: 24px 24px 0 0;
+          box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
+          transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          z-index: 100;
+        }
+
+        .settings.open {
+          transform: translateY(0);
+        }
+
+        :host-context(body.dark) .settings {
+          background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
+          border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .settings-gripper {
+          height: 40px;
+          width: 100%;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .settings-gripper::before {
+          content: "";
+          width: 48px;
+          height: 5px;
+          background: linear-gradient(90deg, #ddd 0%, #bbb 50%, #ddd 100%);
+          border-radius: 3px;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        :host-context(body.dark) .settings-gripper::before {
+          background: linear-gradient(90deg, #555 0%, #777 50%, #555 100%);
+        }
+
+        .settings-content {
+          padding: 0 2rem 1.5rem;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+          max-height: calc(60vh - 40px);
+        }
+
+        .settings-help-text {
+          text-align: center;
+          font-size: 0.875rem;
+          color: #666;
+          margin: 0;
+          font-style: italic;
+        }
+
+        :host-context(body.dark) .settings-help-text {
+          color: #999;
+        }
+
+        .dark-toggle {
+          margin-top: auto;
+          align-self: center;
+          padding: 0.5rem 1rem;
+          background: transparent;
+          color: #666;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          font-weight: 400;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        }
+
+        .dark-toggle:hover {
+          background: #f3f4f6;
+          border-color: #ccc;
+        }
+
+        :host-context(body.dark) .dark-toggle {
+          color: #aaa;
+          border-color: #444;
+        }
+
+        :host-context(body.dark) .dark-toggle:hover {
+          background: #2a2a2a;
+          border-color: #555;
+        }
+
+        ::slotted([slot="content"]) {
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+        }
+      </style>
+
+      <div class="settings">
+        <div class="settings-gripper"></div>
+        <div class="settings-content">
+          <p class="settings-help-text">Counters reset at midnight</p>
+          <slot name="content"></slot>
+          <button class="dark-toggle"></button>
+        </div>
+      </div>
+    `;
+
+    this.panel = this.shadowRoot.querySelector(".settings");
+    this.gripper = this.shadowRoot.querySelector(".settings-gripper");
+    this.darkToggleBtn = this.shadowRoot.querySelector(".dark-toggle");
+    this.updateDarkModeButtonText();
+  }
+
+  private setupEventListeners() {
+    if (!this.gripper || !this.darkToggleBtn || !this.panel) return;
+
+    // Gripper click to toggle
+    this.gripper.addEventListener("click", this.handleGripperClick);
+
+    // Dark mode toggle
+    this.darkToggleBtn.addEventListener("click", this.handleDarkModeToggle);
+
+    // Swipe gestures
+    this.addGripperSwipeListener();
+    this.addSwipeUpListener();
+  }
+
+  private removeEventListeners() {
+    if (!this.gripper || !this.darkToggleBtn) return;
+
+    this.gripper.removeEventListener("click", this.handleGripperClick);
+    this.darkToggleBtn.removeEventListener("click", this.handleDarkModeToggle);
+  }
+
+  private handleGripperClick = () => {
+    if (!this.panel) return;
+    this.panel.classList.toggle("open");
+    this.updateOpenAttribute();
+  };
+
+  private handleDarkModeToggle = () => {
+    this.darkMode = !this.darkMode;
+    if (this.darkMode) {
+      document.body.classList.add("dark");
+    } else {
+      document.body.classList.remove("dark");
+    }
+    this.updateDarkModeButtonText();
+  };
+
+  private updateDarkModeButtonText() {
+    if (!this.darkToggleBtn) return;
+    this.darkToggleBtn.textContent = this.darkMode
+      ? "☀️ Light Mode"
+      : "🌙 Dark Mode";
+  }
+
+  private updateOpenAttribute() {
+    if (!this.panel) return;
+    if (this.panel.classList.contains("open")) {
+      this.setAttribute("open", "");
+    } else {
+      this.removeAttribute("open");
+    }
+  }
+
+  private addGripperSwipeListener() {
+    if (!this.gripper || !this.panel) return;
+
+    let startY = 0;
+    const threshold = 50;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      startY = e.touches[0].clientY;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!startY) return;
+      const touch = e.touches[0];
+      const delta = startY - touch.clientY;
+      const isOpen = this.panel!.classList.contains("open");
+
+      if (!isOpen && delta > threshold) {
+        this.panel!.classList.add("open");
+        this.updateOpenAttribute();
+        startY = 0;
+      } else if (isOpen && delta < -threshold) {
+        this.panel!.classList.remove("open");
+        this.updateOpenAttribute();
+        startY = 0;
+      }
+    };
+
+    const onTouchEnd = () => {
+      startY = 0;
+    };
+
+    this.gripper.addEventListener("touchstart", onTouchStart);
+    this.gripper.addEventListener("touchmove", onTouchMove);
+    this.gripper.addEventListener("touchend", onTouchEnd);
+  }
+
+  private addSwipeUpListener() {
+    let startY = 0;
+    const threshold = 80;
+    const edgeZone = 60;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const viewportHeight = window.innerHeight;
+      if (viewportHeight - touch.clientY <= edgeZone) {
+        startY = touch.clientY;
+      } else {
+        startY = 0;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!startY || !this.panel) return;
+      const touch = e.touches[0];
+      const delta = startY - touch.clientY;
+      if (delta > threshold) {
+        this.panel.classList.add("open");
+        this.updateOpenAttribute();
+        startY = 0;
+      }
+    };
+
+    document.addEventListener("touchstart", onTouchStart);
+    document.addEventListener("touchmove", onTouchMove);
+  }
+
+  // Public API
+  public open() {
+    if (this.panel) {
+      this.panel.classList.add("open");
+      this.updateOpenAttribute();
+    }
+  }
+
+  public close() {
+    if (this.panel) {
+      this.panel.classList.remove("open");
+      this.updateOpenAttribute();
+    }
+  }
+
+  public toggle() {
+    if (this.panel) {
+      this.panel.classList.toggle("open");
+      this.updateOpenAttribute();
+    }
+  }
+
+  public isOpen(): boolean {
+    return this.panel?.classList.contains("open") ?? false;
+  }
+}
+
+// Define the custom element
+customElements.define("settings-panel", SettingsPanel);

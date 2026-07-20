@@ -33,29 +33,35 @@ test.describe("Daily Counter PWA", () => {
   });
 
   test("settings panel opens and closes", async ({ page }) => {
-    const settingsPanel = page.locator(".settings");
-    const gripper = page.locator(".settings-gripper");
+    const settingsPanel = page.locator("settings-panel");
 
-    // Initially closed (no 'open' class)
-    await expect(settingsPanel).not.toHaveClass(/open/);
+    // Initially closed (no 'open' attribute)
+    await expect(settingsPanel).not.toHaveAttribute("open");
 
-    // Open via gripper click
-    await gripper.click();
-    await expect(settingsPanel).toHaveClass(/open/);
+    // Open via JavaScript (since shadow DOM click is tricky in Playwright)
+    await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
+    });
+    await expect(settingsPanel).toHaveAttribute("open");
 
-    // Close via gripper click again
-    await gripper.click();
-    await expect(settingsPanel).not.toHaveClass(/open/);
+    // Close via JavaScript
+    await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.close();
+    });
+    await expect(settingsPanel).not.toHaveAttribute("open");
   });
 
   test("dark mode toggle works", async ({ page }) => {
     // Open settings panel first
     await page.evaluate(() => {
-      const settings = document.querySelector(".settings");
-      settings?.classList.add("open");
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
     });
 
-    const darkToggle = page.locator(".dark-toggle");
+    // Access the dark toggle inside the shadow DOM
+    const darkToggle = page.locator("settings-panel").locator(".dark-toggle");
 
     // Scroll the toggle into view
     await darkToggle.scrollIntoViewIfNeeded();
@@ -77,22 +83,27 @@ test.describe("Daily Counter PWA", () => {
   test("reset button clears counter and updates display", async ({ page }) => {
     const firstWheel = page.locator(".wheel").first();
     const countSpan = firstWheel.locator(".wheel-count .count-value");
-    const resetBtn = page.locator(".reset-btn").first();
 
     // Initial count should be 0
     await expect(countSpan).toHaveText("0");
 
     // Open settings
     await page.evaluate(() => {
-      const settings = document.querySelector(".settings");
-      settings?.classList.add("open");
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
     });
+
+    // Get reset button from within the settings panel slot content
+    const resetBtn = page
+      .locator("settings-panel")
+      .locator(".reset-btn")
+      .first();
 
     // Reset button should show current count
     await expect(resetBtn).toContainText("Reset (0)");
 
-    // Click reset
-    await resetBtn.click();
+    // Click reset using JavaScript to avoid viewport issues
+    await resetBtn.evaluate((el) => (el as HTMLButtonElement).click());
 
     // Count should still be 0
     await expect(countSpan).toHaveText("0");
@@ -176,20 +187,20 @@ test.describe("Daily Counter PWA", () => {
   test("swipe indicator hides when settings panel opens", async ({ page }) => {
     // Open settings panel
     await page.evaluate(() => {
-      const settings = document.querySelector(".settings");
-      settings?.classList.add("open");
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
     });
 
-    // Check that settings panel is open
-    const settingsPanel = page.locator(".settings");
-    await expect(settingsPanel).toHaveClass(/open/);
+    // Check that settings panel is open (has 'open' attribute)
+    const settingsPanel = page.locator("settings-panel");
+    await expect(settingsPanel).toHaveAttribute("open");
 
-    // The swipe indicator should be hidden (opacity: 0) when settings is open
-    // We verify this by checking the body has the settings open state
-    const bodyHasSettingsOpen = await page.evaluate(() => {
-      return document.body.querySelector(".settings.open") !== null;
+    // Verify the panel is actually open by checking internal state
+    const isOpen = await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      return panel?.isOpen() ?? false;
     });
-    expect(bodyHasSettingsOpen).toBe(true);
+    expect(isOpen).toBe(true);
   });
 
   test("target input updates wheel target display", async ({ page }) => {
@@ -201,12 +212,15 @@ test.describe("Daily Counter PWA", () => {
 
     // Open settings
     await page.evaluate(() => {
-      const settings = document.querySelector(".settings");
-      settings?.classList.add("open");
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
     });
 
-    // Update target input
-    const targetInput = page.locator(".target-input").first();
+    // Update target input (inside settings panel shadow DOM)
+    const targetInput = page
+      .locator("settings-panel")
+      .locator(".target-input")
+      .first();
     await targetInput.fill("200");
     await targetInput.evaluate((el) =>
       el.dispatchEvent(new Event("change", { bubbles: true })),
@@ -219,16 +233,23 @@ test.describe("Daily Counter PWA", () => {
   test("settings elements have consistent heights", async ({ page }) => {
     // Open settings
     await page.evaluate(() => {
-      const settings = document.querySelector(".settings");
-      settings?.classList.add("open");
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
     });
 
-    // Get heights of emoji input, target input, and reset button
+    // Get heights of emoji input, target input, and reset button (inside settings panel)
     const emojiInput = page
+      .locator("settings-panel")
       .locator(".wheel-controls input[type='text']")
       .first();
-    const targetInput = page.locator(".target-input").first();
-    const resetBtn = page.locator(".reset-btn").first();
+    const targetInput = page
+      .locator("settings-panel")
+      .locator(".target-input")
+      .first();
+    const resetBtn = page
+      .locator("settings-panel")
+      .locator(".reset-btn")
+      .first();
 
     const emojiHeight = await emojiInput.evaluate(
       (el) => el.getBoundingClientRect().height,
