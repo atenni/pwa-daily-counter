@@ -8,8 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
-    "test:e2e": "playwright test",
-    "postinstall": "playwright install"
+    "test:e2e": "playwright test"
   },
   "dependencies": {},
   "devDependencies": {
