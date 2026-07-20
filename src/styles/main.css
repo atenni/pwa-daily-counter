@@ -54,7 +54,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  padding: 12px; /* ring thickness - increased */
+  padding: 16px; /* ring thickness - increased */
   background: conic-gradient(
     var(--progress-color) 0deg,
     var(--progress-color) var(--wheel-angle),
@@ -95,6 +95,50 @@ body.dark .wheel-count .target-value {
   color: #666;
 }
 
+/* Draft mode display - shown when dragging */
+.wheel-draft-display {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  z-index: 10;
+}
+
+.wheel-draft-display .draft-count {
+  font-size: 3.5rem;
+  font-weight: bold;
+  color: inherit;
+}
+
+body.dark .wheel-draft-display .draft-count {
+  color: #fff;
+}
+
+.save-btn {
+  padding: 0.5rem 1.25rem;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+.save-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.save-btn:active {
+  transform: translateY(0);
+}
+
 /* Thumb that the user drags around the wheel */
 .wheel-thumb {
   position: absolute;
@@ -102,7 +146,7 @@ body.dark .wheel-count .target-value {
   height: 24px;
   background: #3b82f6;
   border-radius: 50%;
-  top: 6px; /* half of ring thickness (12px) */
+  top: 8px; /* half of ring thickness (16px) */
   left: 50%;
   transform: translate(-50%, -50%);
   touch-action: none;

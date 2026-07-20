@@ -26,9 +26,9 @@ export class App {
     const wheelsContainer = document.createElement("div");
     wheelsContainer.className = "wheels-container";
 
-    // Create wheels with default emojis and unique ids
-    this.wheelA = new Wheel("wheelA", "🏋️‍♂️", 20);
-    this.wheelB = new Wheel("wheelB", "🤸‍♀️", 20);
+    // Create wheels with default emojis and unique ids (step=1 for fine-grained control)
+    this.wheelA = new Wheel("wheelA", "🏋️‍♂️", 1);
+    this.wheelB = new Wheel("wheelB", "🤸‍♀️", 1);
     wheelsContainer.appendChild(this.wheelA.element);
     wheelsContainer.appendChild(this.wheelB.element);
 
