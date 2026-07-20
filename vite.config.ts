@@ -2,12 +2,14 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  base: "/pwa-daily-counter/",
   plugins: [
     VitePWA({
       manifest: {
         name: "Daily Counter",
         short_name: "Counter",
-        start_url: "/",
+        start_url: "/pwa-daily-counter/",
+        scope: "/pwa-daily-counter/",
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#3b82f6",
