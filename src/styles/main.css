@@ -1,4 +1,4 @@
-/* Basic layout and wheel styling */
+/* Basic layout and wheel styling - Dark mode only */
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
@@ -6,7 +6,8 @@ body {
   justify-content: center;
   align-items: center;
   height: 100vh;
-  background: #f0f4f8;
+  background: #1e1e1e;
+  color: #fff;
   overflow: hidden; /* prevent vertical scrollbar */
 }
 
@@ -44,9 +45,9 @@ body {
   background: transparent;
   user-select: none;
   position: relative;
-  /* CSS variables controlling the gradient */
+  /* CSS variables controlling the gradient - Dark mode */
   --progress-color: #3b82f6;
-  --bg-color: #d1d5db;
+  --bg-color: #333;
   --wheel-angle: 0deg;
 }
 
@@ -89,12 +90,13 @@ body {
 }
 
 .wheel-count .target-value {
-  color: #888;
+  color: #666;
   font-size: 0.75em;
 }
 
-body.dark .wheel-count .target-value {
-  color: #666;
+.wheel-emoji,
+.wheel-count {
+  color: #fff;
 }
 
 /* Draft mode display - shown when dragging */
@@ -111,10 +113,6 @@ body.dark .wheel-count .target-value {
 .wheel-draft-display .draft-count {
   font-size: 3.5rem;
   font-weight: bold;
-  color: inherit;
-}
-
-body.dark .wheel-draft-display .draft-count {
   color: #fff;
 }
 
@@ -156,34 +154,13 @@ body.dark .wheel-draft-display .draft-count {
   border: 2px solid #fff;
 }
 
-/* Dark mode for the rest of the app */
-body.dark {
-  background: #1e1e1e;
-  color: #fff;
-}
-
-/* Dark mode overrides for the wheel – adjust colors via CSS variables */
-body.dark .wheel {
-  --progress-color: #3b82f6;
-  --bg-color: #333;
-}
-
-body.dark .wheel-emoji,
-body.dark .wheel-count {
-  color: #fff;
-}
-
 /* Wheel control row - label with emoji and reset in a row */
 .wheel-control-row {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   padding: 1rem 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}
-
-body.dark .wheel-control-row {
-  border-bottom-color: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .wheel-control-row:last-of-type {
@@ -193,13 +170,9 @@ body.dark .wheel-control-row {
 .wheel-control-row label {
   font-size: 0.875rem;
   font-weight: 500;
-  color: #666;
+  color: #aaa;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-}
-
-body.dark .wheel-control-row label {
-  color: #aaa;
 }
 
 .wheel-controls {
@@ -215,9 +188,10 @@ body.dark .wheel-control-row label {
   height: 50px;
   font-size: 1.75rem;
   text-align: center;
-  border: 2px solid #e0e0e0;
+  border: 2px solid #444;
   border-radius: 12px;
-  background: #fff;
+  background: #2a2a2a;
+  color: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -234,12 +208,6 @@ body.dark .wheel-control-row label {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
-body.dark .wheel-controls input[type="text"] {
-  background: #2a2a2a;
-  border-color: #444;
-  color: #fff;
-}
-
 /* Target input styling */
 .target-input-wrapper {
   display: flex;
@@ -250,13 +218,9 @@ body.dark .wheel-controls input[type="text"] {
 
 .target-input-wrapper span {
   font-size: 0.7rem;
-  color: #888;
+  color: #777;
   text-transform: uppercase;
   white-space: nowrap;
-}
-
-body.dark .target-input-wrapper span {
-  color: #777;
 }
 
 .target-input {
@@ -264,9 +228,10 @@ body.dark .target-input-wrapper span {
   height: 50px;
   font-size: 1.125rem;
   text-align: center;
-  border: 2px solid #e0e0e0;
+  border: 2px solid #444;
   border-radius: 12px;
-  background: #fff;
+  background: #2a2a2a;
+  color: #fff;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
@@ -281,23 +246,17 @@ body.dark .target-input-wrapper span {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
-body.dark .target-input {
-  background: #2a2a2a;
-  border-color: #444;
-  color: #fff;
-}
-
 /* Reset buttons */
 .reset-btn {
   padding: 0 1.25rem;
   height: 50px;
   min-width: 100px;
-  background: #f3f4f6;
+  background: #333;
   border: 2px solid transparent;
   border-radius: 12px;
   font-size: 0.9375rem;
   font-weight: 500;
-  color: #374151;
+  color: #e5e7eb;
   cursor: pointer;
   transition: all 0.2s ease;
   white-space: nowrap;
@@ -305,23 +264,6 @@ body.dark .target-input {
 }
 
 .reset-btn:hover {
-  background: #e5e7eb;
-  transform: translateY(-1px);
-}
-
-body.dark .reset-btn {
-  background: #333;
-  color: #e5e7eb;
-}
-
-body.dark .reset-btn:hover {
   background: #444;
-}
-
-
-}
-
-body.dark .settings .dark-toggle:hover {
-  background: #2a2a2a;
-  border-color: #555;
+  transform: translateY(-1px);
 }

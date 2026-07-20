@@ -13,12 +13,9 @@
 export class SettingsPanel extends HTMLElement {
   private panel: HTMLElement | null = null;
   private gripper: HTMLElement | null = null;
-  private darkToggleBtn: HTMLButtonElement | null = null;
-  private darkMode: boolean;
 
   constructor() {
     super();
-    this.darkMode = document.body.classList.contains("dark");
     this.attachShadow({ mode: "open" });
     this.render();
   }
@@ -62,8 +59,8 @@ export class SettingsPanel extends HTMLElement {
           transform: translateY(calc(100% - 40px));
           height: auto;
           max-height: 60vh;
-          background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
-          border-top: 1px solid rgba(0, 0, 0, 0.1);
+          background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 24px 24px 0 0;
           box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
           transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
@@ -72,11 +69,6 @@ export class SettingsPanel extends HTMLElement {
 
         .settings.open {
           transform: translateY(0);
-        }
-
-        :host-context(body.dark) .settings {
-          background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
-          border-color: rgba(255, 255, 255, 0.1);
         }
 
         .settings-gripper {
@@ -93,13 +85,9 @@ export class SettingsPanel extends HTMLElement {
           content: "";
           width: 48px;
           height: 5px;
-          background: linear-gradient(90deg, #ddd 0%, #bbb 50%, #ddd 100%);
+          background: linear-gradient(90deg, #555 0%, #777 50%, #555 100%);
           border-radius: 3px;
           box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-        }
-
-        :host-context(body.dark) .settings-gripper::before {
-          background: linear-gradient(90deg, #555 0%, #777 50%, #555 100%);
         }
 
         .settings-content {
@@ -114,42 +102,9 @@ export class SettingsPanel extends HTMLElement {
         .settings-help-text {
           text-align: center;
           font-size: 0.875rem;
-          color: #666;
+          color: #999;
           margin: 0;
           font-style: italic;
-        }
-
-        :host-context(body.dark) .settings-help-text {
-          color: #999;
-        }
-
-        .dark-toggle {
-          margin-top: auto;
-          align-self: center;
-          padding: 0.5rem 1rem;
-          background: transparent;
-          color: #666;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          font-size: 0.875rem;
-          font-weight: 400;
-          cursor: pointer;
-          transition: all 0.2s ease;
-        }
-
-        .dark-toggle:hover {
-          background: #f3f4f6;
-          border-color: #ccc;
-        }
-
-        :host-context(body.dark) .dark-toggle {
-          color: #aaa;
-          border-color: #444;
-        }
-
-        :host-context(body.dark) .dark-toggle:hover {
-          background: #2a2a2a;
-          border-color: #555;
         }
 
         ::slotted([slot="content"]) {
@@ -164,25 +119,19 @@ export class SettingsPanel extends HTMLElement {
         <div class="settings-content">
           <p class="settings-help-text">Counters reset at midnight</p>
           <slot name="content"></slot>
-          <button class="dark-toggle"></button>
         </div>
       </div>
     `;
 
     this.panel = this.shadowRoot.querySelector(".settings");
     this.gripper = this.shadowRoot.querySelector(".settings-gripper");
-    this.darkToggleBtn = this.shadowRoot.querySelector(".dark-toggle");
-    this.updateDarkModeButtonText();
   }
 
   private setupEventListeners() {
-    if (!this.gripper || !this.darkToggleBtn || !this.panel) return;
+    if (!this.gripper || !this.panel) return;
 
     // Gripper click to toggle
     this.gripper.addEventListener("click", this.handleGripperClick);
-
-    // Dark mode toggle
-    this.darkToggleBtn.addEventListener("click", this.handleDarkModeToggle);
 
     // Swipe gestures
     this.addGripperSwipeListener();
@@ -190,10 +139,9 @@ export class SettingsPanel extends HTMLElement {
   }
 
   private removeEventListeners() {
-    if (!this.gripper || !this.darkToggleBtn) return;
+    if (!this.gripper) return;
 
     this.gripper.removeEventListener("click", this.handleGripperClick);
-    this.darkToggleBtn.removeEventListener("click", this.handleDarkModeToggle);
   }
 
   private handleGripperClick = () => {
@@ -201,23 +149,6 @@ export class SettingsPanel extends HTMLElement {
     this.panel.classList.toggle("open");
     this.updateOpenAttribute();
   };
-
-  private handleDarkModeToggle = () => {
-    this.darkMode = !this.darkMode;
-    if (this.darkMode) {
-      document.body.classList.add("dark");
-    } else {
-      document.body.classList.remove("dark");
-    }
-    this.updateDarkModeButtonText();
-  };
-
-  private updateDarkModeButtonText() {
-    if (!this.darkToggleBtn) return;
-    this.darkToggleBtn.textContent = this.darkMode
-      ? "☀️ Light Mode"
-      : "🌙 Dark Mode";
-  }
 
   private updateOpenAttribute() {
     if (!this.panel) return;

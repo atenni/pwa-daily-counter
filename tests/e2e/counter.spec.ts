@@ -53,39 +53,55 @@ test.describe("Daily Counter PWA", () => {
     await expect(settingsPanel).not.toHaveAttribute("open");
   });
 
-  test("dark mode toggle works", async ({ page }) => {
-    // Open settings panel first
-    await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      panel?.open();
+  test("app is in dark mode by default", async ({ page }) => {
+    // Verify body has dark background
+    const bodyBg = await page.evaluate(() => {
+      return window.getComputedStyle(document.body).backgroundColor;
     });
-
-    // Access the dark toggle inside the shadow DOM
-    const darkToggle = page.locator("settings-panel").locator(".dark-toggle");
-
-    // Scroll the toggle into view
-    await darkToggle.scrollIntoViewIfNeeded();
-
-    // Initial state - should show "Light Mode" since app starts in dark mode
-    await expect(darkToggle).toHaveText("☀️ Light Mode");
-
-    // Click to toggle to light mode using JavaScript to avoid viewport issues
-    await darkToggle.evaluate((el) => (el as HTMLButtonElement).click());
-    await expect(darkToggle).toHaveText("🌙 Dark Mode");
-    await expect(page.locator("body")).not.toHaveClass(/dark/);
-
-    // Click to toggle back to dark mode
-    await darkToggle.evaluate((el) => (el as HTMLButtonElement).click());
-    await expect(darkToggle).toHaveText("☀️ Light Mode");
-    await expect(page.locator("body")).toHaveClass(/dark/);
+    // Dark mode should have rgb(30, 30, 30) or similar dark color
+    expect(bodyBg).toBe("rgb(30, 30, 30)");
   });
 
   test("reset button clears counter and updates display", async ({ page }) => {
     const firstWheel = page.locator(".wheel").first();
     const countSpan = firstWheel.locator(".wheel-count .count-value");
+    const saveBtn = firstWheel.locator(".save-btn");
 
     // Initial count should be 0
     await expect(countSpan).toHaveText("0");
+
+    // First, add some counts via drag and save
+    await firstWheel.evaluate((el) => {
+      const wheel = el as HTMLElement;
+      const rect = wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const mousedown = new MouseEvent("mousedown", {
+        clientX: centerX,
+        clientY: centerY - 50,
+        bubbles: true,
+      });
+      wheel.dispatchEvent(mousedown);
+
+      const mousemove = new MouseEvent("mousemove", {
+        clientX: centerX + 40,
+        clientY: centerY - 20,
+        bubbles: true,
+      });
+      window.dispatchEvent(mousemove);
+
+      const mouseup = new MouseEvent("mouseup", { bubbles: true });
+      window.dispatchEvent(mouseup);
+    });
+
+    // Save the draft to persist the count
+    await saveBtn.click();
+
+    // Verify count is now greater than 0
+    const countBeforeReset = await countSpan.textContent();
+    const countValue = parseInt(countBeforeReset || "0");
+    expect(countValue).toBeGreaterThan(0);
 
     // Open settings
     await page.evaluate(() => {
@@ -100,12 +116,12 @@ test.describe("Daily Counter PWA", () => {
       .first();
 
     // Reset button should show current count
-    await expect(resetBtn).toContainText("Reset (0)");
+    await expect(resetBtn).toContainText(`Reset (${countValue})`);
 
     // Click reset using JavaScript to avoid viewport issues
     await resetBtn.evaluate((el) => (el as HTMLButtonElement).click());
 
-    // Count should still be 0
+    // Count should now be 0
     await expect(countSpan).toHaveText("0");
   });
 
@@ -116,22 +132,21 @@ test.describe("Daily Counter PWA", () => {
     // Get initial emoji
     const initialEmoji = await emojiDisplay.textContent();
 
-    // Open settings
+    // Open settings panel
     await page.evaluate(() => {
-      const settings = document.querySelector(".settings");
-      settings?.classList.add("open");
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.open();
     });
 
-    // Update emoji input via JavaScript to trigger the input event
-    await page.evaluate(() => {
-      const input = document.querySelector(
-        ".wheel-controls input",
-      ) as HTMLInputElement;
-      if (input) {
-        input.value = "💪";
-        input.dispatchEvent(new Event("input", { bubbles: true }));
-      }
-    });
+    // Update emoji input inside the settings panel shadow DOM
+    const emojiInput = page
+      .locator("settings-panel")
+      .locator(".wheel-controls input[type='text']")
+      .first();
+    await emojiInput.fill("💪");
+    await emojiInput.evaluate((el) =>
+      el.dispatchEvent(new Event("input", { bubbles: true })),
+    );
 
     // Verify emoji updated
     await expect(emojiDisplay).toHaveText("💪");
@@ -261,7 +276,7 @@ test.describe("Daily Counter PWA", () => {
       (el) => el.getBoundingClientRect().height,
     );
 
-    // All should be 50px (or very close)
+    // All elements should have consistent height of 50px
     expect(emojiHeight).toBe(50);
     expect(targetHeight).toBe(50);
     expect(resetHeight).toBe(50);
@@ -591,5 +606,119 @@ test.describe("Daily Counter PWA", () => {
       getComputedStyle(el).getPropertyValue("--wheel-angle"),
     );
     expect(wheelAngle).toBe("0deg");
+  });
+
+  test("settings panel toggle method works correctly", async ({ page }) => {
+    const settingsPanel = page.locator("settings-panel");
+
+    // Initially closed
+    await expect(settingsPanel).not.toHaveAttribute("open");
+    let isOpen = await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      return panel?.isOpen() ?? false;
+    });
+    expect(isOpen).toBe(false);
+
+    // Toggle open
+    await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.toggle();
+    });
+    await expect(settingsPanel).toHaveAttribute("open");
+    isOpen = await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      return panel?.isOpen() ?? false;
+    });
+    expect(isOpen).toBe(true);
+
+    // Toggle closed
+    await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      panel?.toggle();
+    });
+    await expect(settingsPanel).not.toHaveAttribute("open");
+    isOpen = await page.evaluate(() => {
+      const panel = document.querySelector("settings-panel") as any;
+      return panel?.isOpen() ?? false;
+    });
+    expect(isOpen).toBe(false);
+  });
+
+  test("both wheels maintain independent counts", async ({ page }) => {
+    const firstWheel = page.locator(".wheel").first();
+    const secondWheel = page.locator(".wheel").nth(1);
+    const firstCount = firstWheel.locator(".wheel-count .count-value");
+    const secondCount = secondWheel.locator(".wheel-count .count-value");
+    const firstSaveBtn = firstWheel.locator(".save-btn");
+    const secondSaveBtn = secondWheel.locator(".save-btn");
+
+    // Initial counts should be 0
+    await expect(firstCount).toHaveText("0");
+    await expect(secondCount).toHaveText("0");
+
+    // Add to first wheel only
+    await firstWheel.evaluate((el) => {
+      const wheel = el as HTMLElement;
+      const rect = wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const mousedown = new MouseEvent("mousedown", {
+        clientX: centerX,
+        clientY: centerY - 50,
+        bubbles: true,
+      });
+      wheel.dispatchEvent(mousedown);
+
+      const mousemove = new MouseEvent("mousemove", {
+        clientX: centerX + 40,
+        clientY: centerY - 20,
+        bubbles: true,
+      });
+      window.dispatchEvent(mousemove);
+
+      const mouseup = new MouseEvent("mouseup", { bubbles: true });
+      window.dispatchEvent(mouseup);
+    });
+
+    await firstSaveBtn.click();
+
+    // First wheel should have count > 0, second should still be 0
+    const firstCountValue = await firstCount.textContent();
+    expect(parseInt(firstCountValue || "0")).toBeGreaterThan(0);
+    await expect(secondCount).toHaveText("0");
+
+    // Add to second wheel
+    await secondWheel.evaluate((el) => {
+      const wheel = el as HTMLElement;
+      const rect = wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      const mousedown = new MouseEvent("mousedown", {
+        clientX: centerX,
+        clientY: centerY - 50,
+        bubbles: true,
+      });
+      wheel.dispatchEvent(mousedown);
+
+      const mousemove = new MouseEvent("mousemove", {
+        clientX: centerX + 30,
+        clientY: centerY - 30,
+        bubbles: true,
+      });
+      window.dispatchEvent(mousemove);
+
+      const mouseup = new MouseEvent("mouseup", { bubbles: true });
+      window.dispatchEvent(mouseup);
+    });
+
+    await secondSaveBtn.click();
+
+    // Both wheels should have independent counts > 0
+    const secondCountValue = await secondCount.textContent();
+    expect(parseInt(secondCountValue || "0")).toBeGreaterThan(0);
+    // First wheel count should remain unchanged
+    await expect(firstCount).toHaveText(firstCountValue || "");
   });
 });
