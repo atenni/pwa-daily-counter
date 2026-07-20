@@ -13,9 +13,10 @@ export class Wheel {
   private countSpan!: HTMLSpanElement;
   private targetSpan!: HTMLSpanElement;
   private thumb!: HTMLElement;
-  private currentAngle = 0; // degrees, 0‑360
+  private currentAngle = 0; // degrees, 0‑360 (for visual display)
   private isDragging = false;
-  private lastAngle = 0;
+  private lastAngle = 0; // raw angle for delta calculation
+  private rawAngle = 0; // unwrapped angle for continuous rotation tracking
 
   // Draft mode state for pending increments
   private draftIncrement = 0;
@@ -105,22 +106,30 @@ export class Wheel {
 
     const onMove = (clientX: number, clientY: number) => {
       if (!this.isDragging) return;
-      const newAngle = this._calcAngle(clientX, clientY, container);
+      const newWrappedAngle = this._calcAngle(clientX, clientY, container);
       const stepDeg = 360 / 20; // 18° per increment (20 steps per rotation)
-      // signed smallest angular difference (-180..180)
-      let delta = newAngle - this.lastAngle;
+
+      // Calculate delta accounting for wrap-around
+      let delta = newWrappedAngle - this.lastAngle;
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
-      const increments = Math.trunc(delta / stepDeg);
+
+      // Update raw unwrapped angle for continuous tracking
+      this.rawAngle += delta;
+
+      const increments =
+        Math.trunc(this.rawAngle / stepDeg) -
+        Math.trunc((this.rawAngle - delta) / stepDeg);
+
       if (increments !== 0) {
         // In draft mode, accumulate increments without persisting
         this.draftIncrement += increments * this.step;
-        this.currentAngle = (this.currentAngle + increments * stepDeg) % 360;
-        if (this.currentAngle < 0) this.currentAngle += 360;
+        this.currentAngle = ((this.rawAngle % 360) + 360) % 360;
         this._updateVisuals(container);
         this.updateDraftDisplay();
-        this.lastAngle = newAngle;
       }
+
+      this.lastAngle = newWrappedAngle;
     };
 
     const endDrag = () => {
@@ -165,6 +174,7 @@ export class Wheel {
     this.draftIncrement = 0;
     // Always start thumb at 12 o'clock for new draft session
     this.currentAngle = 0;
+    this.rawAngle = 0;
     this._updateVisuals(this.element);
     this.emojiDiv.style.display = "none";
     this.countDiv.style.display = "none";
@@ -181,6 +191,7 @@ export class Wheel {
     this.draftDisplay.style.display = "none";
     // Always reset thumb to 12 o'clock when exiting draft mode
     this.currentAngle = 0;
+    this.rawAngle = 0;
     this._updateVisuals(this.element);
     this.updateCount();
   }
@@ -220,6 +231,7 @@ export class Wheel {
   public reset(): void {
     reset(this.id);
     this.currentAngle = 0;
+    this.rawAngle = 0;
     this._updateVisuals(this.element);
     this.updateCount();
   }
