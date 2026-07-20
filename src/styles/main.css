@@ -83,19 +83,18 @@ body {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  color: #444; /* Dimmed by default - applies to / separator and target */
 }
 
 .wheel-count .count-value {
-  color: inherit;
+  color: #fff; /* Only the count is bright white */
 }
 
 .wheel-count .target-value {
-  color: #666;
-  font-size: 0.75em;
+  color: inherit; /* Inherits dimmed color from parent */
 }
 
-.wheel-emoji,
-.wheel-count {
+.wheel-emoji {
   color: #fff;
 }
 
