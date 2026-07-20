@@ -1,0 +1,378 @@
+/* Basic layout and wheel styling */
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background: #f0f4f8;
+  overflow: hidden; /* prevent vertical scrollbar */
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  position: relative;
+  height: 100vh;
+  width: 100%;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.wheels-container {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+/* Wheel component – a circular ring whose progress is shown via a pseudo-element */
+.wheel {
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  background: transparent;
+  user-select: none;
+  position: relative;
+  /* CSS variables controlling the gradient */
+  --progress-color: #3b82f6;
+  --bg-color: #d1d5db;
+  --wheel-angle: 0deg;
+}
+
+/* The progress ring - uses a pseudo-element with conic-gradient */
+.wheel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: 12px; /* ring thickness - increased */
+  background: conic-gradient(
+    var(--progress-color) 0deg,
+    var(--progress-color) var(--wheel-angle),
+    var(--bg-color) var(--wheel-angle),
+    var(--bg-color) 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.wheel-emoji {
+  font-size: 3.5rem;
+}
+
+.wheel-count {
+  margin-top: 0.75rem;
+  font-size: 2rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.wheel-count .count-value {
+  color: inherit;
+}
+
+.wheel-count .target-value {
+  color: #888;
+  font-size: 0.75em;
+}
+
+body.dark .wheel-count .target-value {
+  color: #666;
+}
+
+/* Thumb that the user drags around the wheel */
+.wheel-thumb {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: #3b82f6;
+  border-radius: 50%;
+  top: 6px; /* half of ring thickness (12px) */
+  left: 50%;
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border: 2px solid #fff;
+}
+
+/* Settings panel – simplified single element that slides up from bottom */
+.settings {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transform: translateY(
+    calc(100% - 40px)
+  ); /* show only gripper (40px) when closed */
+  height: auto;
+  max-height: 60vh;
+  background: linear-gradient(180deg, #f8f9fa 0%, #ffffff 100%);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 100;
+}
+
+.settings.open {
+  transform: translateY(0);
+}
+
+body.dark .settings {
+  background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Gripper handle - visible part when panel is closed */
+.settings-gripper {
+  height: 40px;
+  width: 100%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Gripper visual indicator */
+.settings-gripper::before {
+  content: "";
+  width: 48px;
+  height: 5px;
+  background: linear-gradient(90deg, #ddd 0%, #bbb 50%, #ddd 100%);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+body.dark .settings-gripper::before {
+  background: linear-gradient(90deg, #555 0%, #777 50%, #555 100%);
+}
+
+/* Settings content - scrollable area */
+.settings-content {
+  padding: 0 2rem 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-height: calc(60vh - 40px);
+}
+
+/* Dark mode for the rest of the app */
+body.dark {
+  background: #1e1e1e;
+  color: #fff;
+}
+
+/* Dark mode overrides for the wheel – adjust colors via CSS variables */
+body.dark .wheel {
+  --progress-color: #3b82f6;
+  --bg-color: #333;
+}
+
+body.dark .wheel-emoji,
+body.dark .wheel-count {
+  color: #fff;
+}
+
+/* Help text in settings panel */
+.settings-help-text {
+  text-align: center;
+  font-size: 0.875rem;
+  color: #666;
+  margin: 0;
+  font-style: italic;
+}
+
+body.dark .settings-help-text {
+  color: #999;
+}
+
+/* Wheel control row - label with emoji and reset in a row */
+.wheel-control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+body.dark .wheel-control-row {
+  border-bottom-color: rgba(255, 255, 255, 0.05);
+}
+
+.wheel-control-row:last-of-type {
+  border-bottom: none;
+}
+
+.wheel-control-row label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+body.dark .wheel-control-row label {
+  color: #aaa;
+}
+
+.wheel-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+}
+
+.wheel-controls input[type="text"] {
+  width: 50px;
+  height: 50px;
+  font-size: 1.75rem;
+  text-align: center;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.wheel-controls input[type="text"]:hover {
+  border-color: #3b82f6;
+  transform: scale(1.05);
+}
+
+.wheel-controls input[type="text"]:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+body.dark .wheel-controls input[type="text"] {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+
+/* Target input styling */
+.target-input-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.target-input-wrapper span {
+  font-size: 0.7rem;
+  color: #888;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+body.dark .target-input-wrapper span {
+  color: #777;
+}
+
+.target-input {
+  width: 60px;
+  height: 50px;
+  font-size: 1.125rem;
+  text-align: center;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  background: #fff;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.target-input:hover {
+  border-color: #3b82f6;
+}
+
+.target-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+body.dark .target-input {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+
+/* Reset buttons */
+.reset-btn {
+  padding: 0 1.25rem;
+  height: 50px;
+  min-width: 100px;
+  background: #f3f4f6;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.reset-btn:hover {
+  background: #e5e7eb;
+  transform: translateY(-1px);
+}
+
+body.dark .reset-btn {
+  background: #333;
+  color: #e5e7eb;
+}
+
+body.dark .reset-btn:hover {
+  background: #444;
+}
+
+.settings .dark-toggle {
+  margin-top: auto;
+  align-self: center;
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 400;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.settings .dark-toggle:hover {
+  background: #f3f4f6;
+  border-color: #ccc;
+}
+
+body.dark .settings .dark-toggle {
+  color: #aaa;
+  border-color: #444;
+}
+
+body.dark .settings .dark-toggle:hover {
+  background: #2a2a2a;
+  border-color: #555;
+}

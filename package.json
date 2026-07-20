@@ -1,0 +1,21 @@
+{
+  "name": "pwa-daily-counter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test",
+    "test:e2e": "playwright test",
+    "postinstall": "playwright install"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "typescript": "^5.5.0",
+    "vite-plugin-pwa": "^0.20.0",
+    "@playwright/test": "^1.47.0"
+  }
+}
