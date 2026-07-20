@@ -13,10 +13,14 @@ export class Wheel {
   private countSpan!: HTMLSpanElement;
   private targetSpan!: HTMLSpanElement;
   private thumb!: HTMLElement;
-  private currentAngle = 0; // degrees, 0‑360 (for visual display)
   private isDragging = false;
   private lastAngle = 0; // raw angle for delta calculation
   private rawAngle = 0; // unwrapped angle for continuous rotation tracking
+
+  // Derive visual angle from raw angle
+  private get currentAngle(): number {
+    return ((this.rawAngle % 360) + 360) % 360;
+  }
 
   // Draft mode state for pending increments
   private draftIncrement = 0;
@@ -26,6 +30,7 @@ export class Wheel {
   private countDiv!: HTMLElement;
   private draftDisplay!: HTMLElement;
   private saveButton!: HTMLButtonElement;
+  private draftCountEl!: HTMLDivElement;
 
   constructor(
     id: string,
@@ -68,9 +73,9 @@ export class Wheel {
     this.draftDisplay = document.createElement("div");
     this.draftDisplay.className = "wheel-draft-display";
     this.draftDisplay.style.display = "none";
-    const draftCount = document.createElement("div");
-    draftCount.className = "draft-count";
-    this.draftDisplay.appendChild(draftCount);
+    this.draftCountEl = document.createElement("div");
+    this.draftCountEl.className = "draft-count";
+    this.draftDisplay.appendChild(this.draftCountEl);
 
     // Save button
     this.saveButton = document.createElement("button");
@@ -96,35 +101,33 @@ export class Wheel {
     });
 
     // Drag handling (mouse & touch)
+    const getCoords = (e: MouseEvent | TouchEvent): [number, number] =>
+      "touches" in e
+        ? [e.touches[0].clientX, e.touches[0].clientY]
+        : [e.clientX, e.clientY];
+
     const startDrag = (clientX: number, clientY: number) => {
       this.isDragging = true;
       this.lastAngle = this._calcAngle(clientX, clientY, container);
-      if (!this.isDraftMode) {
-        this.enterDraftMode();
-      }
+      if (!this.isDraftMode) this.enterDraftMode();
     };
 
     const onMove = (clientX: number, clientY: number) => {
       if (!this.isDragging) return;
       const newWrappedAngle = this._calcAngle(clientX, clientY, container);
-      const stepDeg = 360 / 20; // 18° per increment (20 steps per rotation)
+      const stepDeg = 18; // 360 / 20
 
-      // Calculate delta accounting for wrap-around
       let delta = newWrappedAngle - this.lastAngle;
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
 
-      // Update raw unwrapped angle for continuous tracking
       this.rawAngle += delta;
-
       const increments =
         Math.trunc(this.rawAngle / stepDeg) -
         Math.trunc((this.rawAngle - delta) / stepDeg);
 
       if (increments !== 0) {
-        // In draft mode, accumulate increments without persisting
         this.draftIncrement += increments * this.step;
-        this.currentAngle = ((this.rawAngle % 360) + 360) % 360;
         this._updateVisuals(container);
         this.updateDraftDisplay();
       }
@@ -132,26 +135,13 @@ export class Wheel {
       this.lastAngle = newWrappedAngle;
     };
 
-    const endDrag = () => {
-      this.isDragging = false;
-    };
+    const endDrag = () => (this.isDragging = false);
 
-    // Mouse events
-    container.addEventListener("mousedown", (e) =>
-      startDrag(e.clientX, e.clientY),
-    );
-    window.addEventListener("mousemove", (e) => onMove(e.clientX, e.clientY));
+    container.addEventListener("mousedown", (e) => startDrag(...getCoords(e)));
+    container.addEventListener("touchstart", (e) => startDrag(...getCoords(e)));
+    window.addEventListener("mousemove", (e) => onMove(...getCoords(e)));
+    window.addEventListener("touchmove", (e) => onMove(...getCoords(e)));
     window.addEventListener("mouseup", endDrag);
-
-    // Touch events
-    container.addEventListener("touchstart", (e) => {
-      const t = e.touches[0];
-      startDrag(t.clientX, t.clientY);
-    });
-    window.addEventListener("touchmove", (e) => {
-      const t = e.touches[0];
-      onMove(t.clientX, t.clientY);
-    });
     window.addEventListener("touchend", endDrag);
 
     // Initial visual state
@@ -173,7 +163,6 @@ export class Wheel {
     this.baseCount = getCount(this.id);
     this.draftIncrement = 0;
     // Always start thumb at 12 o'clock for new draft session
-    this.currentAngle = 0;
     this.rawAngle = 0;
     this._updateVisuals(this.element);
     this.emojiDiv.style.display = "none";
@@ -190,7 +179,6 @@ export class Wheel {
     this.countDiv.style.display = "";
     this.draftDisplay.style.display = "none";
     // Always reset thumb to 12 o'clock when exiting draft mode
-    this.currentAngle = 0;
     this.rawAngle = 0;
     this._updateVisuals(this.element);
     this.updateCount();
@@ -198,11 +186,7 @@ export class Wheel {
 
   /** Update the draft display with current draft increment */
   private updateDraftDisplay() {
-    const draftCount = this.draftDisplay.querySelector(".draft-count");
-    if (draftCount) {
-      // Show just the increment being added, not the total
-      draftCount.textContent = String(this.draftIncrement);
-    }
+    this.draftCountEl.textContent = String(this.draftIncrement);
   }
 
   /** Commit the draft increment to storage */
@@ -211,8 +195,7 @@ export class Wheel {
       increment(this.draftIncrement, this.id);
     }
     this.exitDraftMode();
-    // Reset thumb to 12 o'clock after saving
-    this.currentAngle = 0;
+    // Reset thumb to 12 o'clock after saving (rawAngle already 0 from exitDraftMode)
     this._updateVisuals(this.element);
   }
 
@@ -230,7 +213,6 @@ export class Wheel {
   /** Public method to reset this wheel's counter */
   public reset(): void {
     reset(this.id);
-    this.currentAngle = 0;
     this.rawAngle = 0;
     this._updateVisuals(this.element);
     this.updateCount();

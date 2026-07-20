@@ -1,7 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert";
 import {
-  loadFromStorage,
   saveToStorage,
   getCount,
   increment,
@@ -49,7 +48,7 @@ describe("counter utility", () => {
 
   it("should save and load correctly", () => {
     saveToStorage(123);
-    assert.strictEqual(loadFromStorage(), 123);
+    assert.strictEqual(getCount(), 123);
   });
 
   describe("wheel ID isolation", () => {
@@ -85,10 +84,10 @@ describe("counter utility", () => {
   describe("edge cases", () => {
     it("should return 0 for invalid stored data", () => {
       (global as any).localStorage.setItem("daily-counter", "not-a-number");
-      assert.strictEqual(loadFromStorage(), 0);
+      assert.strictEqual(getCount(), 0);
 
       (global as any).localStorage.setItem("daily-counter", "");
-      assert.strictEqual(loadFromStorage(), 0);
+      assert.strictEqual(getCount(), 0);
     });
 
     it("should handle negative increments (decrement)", () => {

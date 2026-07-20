@@ -102,29 +102,11 @@ export class App {
     targetWrapper.appendChild(targetLabel);
     targetWrapper.appendChild(targetInput);
 
-    // Reset button with current count
+    // Reset button
     const resetBtn = document.createElement("button");
     resetBtn.className = "reset-btn";
-    const countSpan = wheelEl.querySelector(".wheel-count .count-value");
-    const currentCount = countSpan?.textContent || "0";
-    resetBtn.textContent = `Reset (${currentCount})`;
-
-    // Update button text when count changes
-    const observer = new MutationObserver(() => {
-      const newCount = countSpan?.textContent || "0";
-      resetBtn.textContent = `Reset (${newCount})`;
-    });
-    if (countSpan) {
-      observer.observe(countSpan, {
-        characterData: true,
-        childList: true,
-        subtree: true,
-      });
-    }
-
-    resetBtn.addEventListener("click", () => {
-      wheel.reset();
-    });
+    resetBtn.textContent = "Reset";
+    resetBtn.addEventListener("click", () => wheel.reset());
 
     controls.appendChild(input);
     controls.appendChild(targetWrapper);

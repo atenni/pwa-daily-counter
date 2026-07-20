@@ -12,9 +12,9 @@ function keyFor(id: string): string {
   return `${STORAGE_KEY}-${id}`;
 }
 
-/** Load the saved count from localStorage. Returns 0 if not present or invalid. */
-export function loadFromStorage(id?: string): number {
-  const key = id ? keyFor(id) : STORAGE_KEY;
+/** Get the current count from localStorage. Returns 0 if not present or invalid. */
+export function getCount(id?: string): number {
+  const key = id ? `${STORAGE_KEY}-${id}` : STORAGE_KEY;
   const raw = localStorage.getItem(key);
   const parsed = Number(raw);
   return Number.isNaN(parsed) ? 0 : parsed;
@@ -22,20 +22,14 @@ export function loadFromStorage(id?: string): number {
 
 /** Save the current count to localStorage. */
 export function saveToStorage(count: number, id?: string): void {
-  const key = id ? keyFor(id) : STORAGE_KEY;
+  const key = id ? `${STORAGE_KEY}-${id}` : STORAGE_KEY;
   localStorage.setItem(key, String(count));
-}
-
-/** Get the current count (reads from storage). */
-export function getCount(id?: string): number {
-  return loadFromStorage(id);
 }
 
 /** Increment the count by the given step and persist it. */
 export function increment(step: number = 20, id?: string): void {
-  const current = loadFromStorage(id);
-  const next = current + step;
-  saveToStorage(next, id);
+  const current = getCount(id);
+  saveToStorage(current + step, id);
 }
 
 /** Reset the count to zero and persist. */
