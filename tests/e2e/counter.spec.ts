@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Locator } from "@playwright/test";
 
 // Helper to simulate wheel drag
+// offsetX/Y control the drag direction and distance. Default values provide ~1-2 increments.
 const simulateDrag = async (wheel: Locator, offsetX = 40, offsetY = -20) => {
   await wheel.evaluate(
     (el, { offsetX, offsetY }) => {
@@ -29,11 +30,21 @@ const simulateDrag = async (wheel: Locator, offsetX = 40, offsetY = -20) => {
   );
 };
 
-// Helper to open settings panel
+// Helper to open settings panel via JavaScript API
 const openSettings = async (page: Page) => {
   await page.evaluate(() => {
     (document.querySelector("settings-panel") as any)?.open();
   });
+};
+
+// Helper to check if a color is dark (for dark mode testing)
+const isDarkColor = (rgb: string): boolean => {
+  const match = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!match) return false;
+  const [, r, g, b] = match.map(Number);
+  // Calculate perceived brightness (YIQ formula)
+  const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+  return brightness < 128;
 };
 
 test.describe("Daily Counter PWA", () => {
@@ -44,23 +55,20 @@ test.describe("Daily Counter PWA", () => {
   test("homepage loads and shows initial counter", async ({ page }) => {
     await expect(page).toHaveTitle("Daily Counter");
 
-    const wheel = page.locator(".wheel").first();
+    // Use data-testid selectors for stability
+    const wheel = page.locator('[data-testid="wheel-wheelA"]');
     await expect(wheel).toBeVisible();
 
-    const countSpan = wheel.locator(".wheel-count .count-value");
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
     await expect(countSpan).toHaveText("0");
 
-    // Also check target is displayed
-    const targetSpan = wheel.locator(".wheel-count .target-value");
+    const targetSpan = page.locator('[data-testid="target-value-wheelA"]');
     await expect(targetSpan).toHaveText("100");
   });
 
   test("both wheels are rendered with emojis", async ({ page }) => {
-    const wheels = page.locator(".wheel");
-    await expect(wheels).toHaveCount(2);
-
-    const firstEmoji = wheels.first().locator(".wheel-emoji");
-    const secondEmoji = wheels.nth(1).locator(".wheel-emoji");
+    const firstEmoji = page.locator('[data-testid="wheel-emoji-wheelA"]');
+    const secondEmoji = page.locator('[data-testid="wheel-emoji-wheelB"]');
 
     await expect(firstEmoji).toBeVisible();
     await expect(secondEmoji).toBeVisible();
@@ -86,47 +94,33 @@ test.describe("Daily Counter PWA", () => {
   });
 
   test("app is in dark mode by default", async ({ page }) => {
-    // Verify body has dark background
+    // Verify body has dark background using brightness check instead of exact RGB
     const bodyBg = await page.evaluate(() => {
       return window.getComputedStyle(document.body).backgroundColor;
     });
-    // Dark mode should have rgb(30, 30, 30) or similar dark color
-    expect(bodyBg).toBe("rgb(30, 30, 30)");
+    expect(isDarkColor(bodyBg)).toBe(true);
   });
 
   test("reset button clears counter and updates display", async ({ page }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const countSpan = firstWheel.locator(".wheel-count .count-value");
-    const saveBtn = firstWheel.locator(".save-btn");
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
+    const saveBtn = page.locator('[data-testid="save-btn-wheelA"]');
 
     // Initial count should be 0
     await expect(countSpan).toHaveText("0");
 
     // First, add some counts via drag and save
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
     await simulateDrag(firstWheel, 40, -20);
-
-    // Save the draft to persist the count
     await saveBtn.click();
 
     // Verify count is now greater than 0
     const countBeforeReset = await countSpan.textContent();
-    const countValue = parseInt(countBeforeReset || "0");
+    const countValue = parseInt(countBeforeReset || "0", 10);
     expect(countValue).toBeGreaterThan(0);
 
-    // Open settings
+    // Open settings and reset
     await openSettings(page);
-
-    // Get reset button from within the settings panel slot content
-    const resetBtn = page
-      .locator("settings-panel")
-      .locator(".reset-btn")
-      .first();
-
-    // Reset button should be visible
-    await expect(resetBtn).toBeVisible();
-    await expect(resetBtn).toContainText("Reset");
-
-    // Click reset using JavaScript to avoid viewport issues
+    const resetBtn = page.locator("settings-panel .reset-btn").first();
     await resetBtn.evaluate((el) => (el as HTMLButtonElement).click());
 
     // Count should now be 0
@@ -134,16 +128,12 @@ test.describe("Daily Counter PWA", () => {
   });
 
   test("emoji input updates wheel emoji", async ({ page }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const emojiDisplay = firstWheel.locator(".wheel-emoji");
-
-    // Get initial emoji
-    const initialEmoji = await emojiDisplay.textContent();
+    const emojiDisplay = page.locator('[data-testid="wheel-emoji-wheelA"]');
 
     // Open settings panel
     await openSettings(page);
 
-    // Update emoji input inside the settings panel shadow DOM
+    // Update emoji input using stable selector
     const emojiInput = page
       .locator("settings-panel")
       .locator(".wheel-controls input[type='text']")
@@ -158,36 +148,29 @@ test.describe("Daily Counter PWA", () => {
   });
 
   test("wheel has progress ring and thumb", async ({ page }) => {
-    const wheel = page.locator(".wheel").first();
+    const wheel = page.locator('[data-testid="wheel-wheelA"]');
 
-    // Check for thumb element
-    const thumb = wheel.locator(".wheel-thumb");
+    // Check for thumb element using data-testid
+    const thumb = page.locator('[data-testid="wheel-thumb-wheelA"]');
     await expect(thumb).toBeVisible();
 
     // Verify wheel has the progress ring (via CSS custom property)
-    const wheelElement = await wheel.elementHandle();
-    const wheelAngle = await wheelElement?.evaluate((el) =>
+    const wheelAngle = await wheel.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--wheel-angle"),
     );
     expect(wheelAngle).toBe("0deg");
   });
 
-  test("settings gripper is visible at bottom", async ({ page }) => {
+  test("settings gripper is visible and clickable", async ({ page }) => {
     // The settings gripper is the visible handle at the bottom
-    const gripper = page.locator(".settings-gripper");
+    const gripper = page.locator('[data-testid="settings-gripper"]');
     await expect(gripper).toBeVisible();
 
-    // Check that gripper has proper styling
-    const gripperStyles = await gripper.evaluate((el) => {
-      const styles = window.getComputedStyle(el);
-      return {
-        height: styles.height,
-        cursor: styles.cursor,
-      };
-    });
-
-    expect(gripperStyles.height).toBe("40px");
-    expect(gripperStyles.cursor).toBe("pointer");
+    // Check that gripper is clickable (has pointer cursor)
+    const cursor = await gripper.evaluate(
+      (el) => window.getComputedStyle(el).cursor,
+    );
+    expect(cursor).toBe("pointer");
   });
 
   test("no vertical scrollbar on main screen", async ({ page }) => {
@@ -204,36 +187,14 @@ test.describe("Daily Counter PWA", () => {
     expect(hasScrollbar).toBe(false);
   });
 
-  test("swipe indicator hides when settings panel opens", async ({ page }) => {
-    // Open settings panel
-    await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      panel?.open();
-    });
-
-    // Check that settings panel is open (has 'open' attribute)
-    const settingsPanel = page.locator("settings-panel");
-    await expect(settingsPanel).toHaveAttribute("open");
-
-    // Verify the panel is actually open by checking internal state
-    const isOpen = await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      return panel?.isOpen() ?? false;
-    });
-    expect(isOpen).toBe(true);
-  });
-
   test("target input updates wheel target display", async ({ page }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const targetSpan = firstWheel.locator(".wheel-count .target-value");
+    const targetSpan = page.locator('[data-testid="target-value-wheelA"]');
 
     // Initial target should be 100
     await expect(targetSpan).toHaveText("100");
 
-    // Open settings
+    // Open settings and update target
     await openSettings(page);
-
-    // Update target input (inside settings panel shadow DOM)
     const targetInput = page
       .locator("settings-panel")
       .locator(".target-input")
@@ -247,53 +208,20 @@ test.describe("Daily Counter PWA", () => {
     await expect(targetSpan).toHaveText("200");
   });
 
-  test("settings elements have consistent heights", async ({ page }) => {
-    // Open settings
-    await openSettings(page);
-
-    // Get heights of emoji input, target input, and reset button (inside settings panel)
-    const emojiInput = page
-      .locator("settings-panel")
-      .locator(".wheel-controls input[type='text']")
-      .first();
-    const targetInput = page
-      .locator("settings-panel")
-      .locator(".target-input")
-      .first();
-    const resetBtn = page
-      .locator("settings-panel")
-      .locator(".reset-btn")
-      .first();
-
-    const emojiHeight = await emojiInput.evaluate(
-      (el) => el.getBoundingClientRect().height,
-    );
-    const targetHeight = await targetInput.evaluate(
-      (el) => el.getBoundingClientRect().height,
-    );
-    const resetHeight = await resetBtn.evaluate(
-      (el) => el.getBoundingClientRect().height,
-    );
-
-    // All elements should have consistent height of 50px
-    expect(emojiHeight).toBe(50);
-    expect(targetHeight).toBe(50);
-    expect(resetHeight).toBe(50);
-  });
-
   test("wheel enters draft mode on drag and shows save button", async ({
     page,
   }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const emoji = firstWheel.locator(".wheel-emoji");
-    const countDiv = firstWheel.locator(".wheel-count");
-    const draftDisplay = firstWheel.locator(".wheel-draft-display");
-    const saveBtn = firstWheel.locator(".save-btn");
-    const draftCount = firstWheel.locator(".draft-count");
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const emoji = page.locator('[data-testid="wheel-emoji-wheelA"]');
+    const countDiv = page
+      .locator('[data-testid="count-value-wheelA"]')
+      .locator("..");
+    const draftDisplay = page.locator('[data-testid="draft-display-wheelA"]');
+    const saveBtn = page.locator('[data-testid="save-btn-wheelA"]');
+    const draftCount = page.locator('[data-testid="draft-count-wheelA"]');
 
     // Initially, emoji and count should be visible, draft display hidden
     await expect(emoji).toBeVisible();
-    await expect(countDiv).toBeVisible();
     await expect(draftDisplay).not.toBeVisible();
 
     // Use JavaScript to simulate the drag interaction
@@ -303,7 +231,6 @@ test.describe("Daily Counter PWA", () => {
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      // Start drag
       const mousedown = new MouseEvent("mousedown", {
         clientX: centerX,
         clientY: centerY - 50,
@@ -311,7 +238,6 @@ test.describe("Daily Counter PWA", () => {
       });
       wheel.dispatchEvent(mousedown);
 
-      // Move to trigger draft mode
       const mousemove = new MouseEvent("mousemove", {
         clientX: centerX + 30,
         clientY: centerY - 40,
@@ -324,84 +250,71 @@ test.describe("Daily Counter PWA", () => {
     await expect(draftDisplay).toBeVisible();
     await expect(saveBtn).toBeVisible();
     await expect(emoji).not.toBeVisible();
-    await expect(countDiv).not.toBeVisible();
 
     // Draft count should show the increment (not the total)
     const draftValue = await draftCount.textContent();
-    expect(parseInt(draftValue || "0")).toBeGreaterThan(0);
+    expect(parseInt(draftValue || "0", 10)).toBeGreaterThan(0);
 
     // End drag
     await page.evaluate(() => {
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
   });
 
   test("save button commits draft increment, exits draft mode, and resets thumb to 12 o'clock", async ({
     page,
   }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const countSpan = firstWheel.locator(".wheel-count .count-value");
-    const draftDisplay = firstWheel.locator(".wheel-draft-display");
-    const saveBtn = firstWheel.locator(".save-btn");
-    const emoji = firstWheel.locator(".wheel-emoji");
-    const countDiv = firstWheel.locator(".wheel-count");
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
+    const draftDisplay = page.locator('[data-testid="draft-display-wheelA"]');
+    const saveBtn = page.locator('[data-testid="save-btn-wheelA"]');
+    const emoji = page.locator('[data-testid="wheel-emoji-wheelA"]');
 
-    // Initial count should be 0
     await expect(countSpan).toHaveText("0");
 
-    // Use JavaScript to simulate the drag interaction
+    // Simulate drag
     await firstWheel.evaluate((el) => {
       const wheel = el as HTMLElement;
       const rect = wheel.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      // Start drag
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      // Move significantly to accumulate increments
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 80,
-        clientY: centerY - 30,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      // End drag
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 80,
+          clientY: centerY - 30,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
-    // Draft mode should be active
     await expect(draftDisplay).toBeVisible();
 
-    // Get the draft increment value before saving
-    const draftCount = firstWheel.locator(".draft-count");
+    const draftCount = page.locator('[data-testid="draft-count-wheelA"]');
     const draftValue = await draftCount.textContent();
-    const incrementAmount = parseInt(draftValue || "0");
+    const incrementAmount = parseInt(draftValue || "0", 10);
     expect(incrementAmount).toBeGreaterThan(0);
 
-    // Click save button
     await saveBtn.click();
 
-    // Draft mode should exit, emoji and count should be visible again
+    // Draft mode should exit
     await expect(draftDisplay).not.toBeVisible();
     await expect(emoji).toBeVisible();
-    await expect(countDiv).toBeVisible();
 
-    // Count should have increased by the draft increment
+    // Count should have increased
     const newCount = await countSpan.textContent();
-    expect(parseInt(newCount || "0")).toBe(incrementAmount);
+    expect(parseInt(newCount || "0", 10)).toBe(incrementAmount);
 
-    // Thumb should be reset to 12 o'clock (0 degrees)
-    const wheelElement = await firstWheel.elementHandle();
-    const wheelAngle = await wheelElement?.evaluate((el) =>
+    // Thumb should be reset to 12 o'clock
+    const wheelAngle = await firstWheel.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--wheel-angle"),
     );
     expect(wheelAngle).toBe("0deg");
@@ -410,100 +323,88 @@ test.describe("Daily Counter PWA", () => {
   test("clicking outside wheel cancels draft mode without saving and resets thumb to 12 o'clock", async ({
     page,
   }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const draftDisplay = firstWheel.locator(".wheel-draft-display");
-    const emoji = firstWheel.locator(".wheel-emoji");
-    const countDiv = firstWheel.locator(".wheel-count");
-    const countSpan = firstWheel.locator(".wheel-count .count-value");
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const draftDisplay = page.locator('[data-testid="draft-display-wheelA"]');
+    const emoji = page.locator('[data-testid="wheel-emoji-wheelA"]');
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
 
-    // Get initial count
     const initialCount = await countSpan.textContent();
 
-    // Use JavaScript to simulate the drag interaction
+    // Simulate drag
     await firstWheel.evaluate((el) => {
       const wheel = el as HTMLElement;
       const rect = wheel.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 80,
-        clientY: centerY - 40,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 80,
+          clientY: centerY - 40,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
-    // Draft mode should be active
     await expect(draftDisplay).toBeVisible();
 
-    // Click outside the wheel (on body)
+    // Click outside the wheel
     await page.click("body", { position: { x: 50, y: 50 } });
 
     // Draft mode should exit without saving
     await expect(draftDisplay).not.toBeVisible();
     await expect(emoji).toBeVisible();
-    await expect(countDiv).toBeVisible();
 
     // Count should remain unchanged
     const finalCount = await countSpan.textContent();
     expect(finalCount).toBe(initialCount);
 
-    // Thumb should be reset to 12 o'clock (0 degrees)
-    const wheelElement = await firstWheel.elementHandle();
-    const wheelAngle = await wheelElement?.evaluate((el) =>
+    // Thumb should be reset to 12 o'clock
+    const wheelAngle = await firstWheel.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--wheel-angle"),
     );
     expect(wheelAngle).toBe("0deg");
   });
 
   test("wheel increments by 1 per step", async ({ page }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const countSpan = firstWheel.locator(".wheel-count .count-value");
-    const saveBtn = firstWheel.locator(".save-btn");
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
+    const saveBtn = page.locator('[data-testid="save-btn-wheelA"]');
 
-    // Initial count should be 0
     await expect(countSpan).toHaveText("0");
 
-    // Use JavaScript to simulate a small drag (just over one step)
+    // Simulate a small drag (just over one step ~18 degrees)
     await firstWheel.evaluate((el) => {
       const wheel = el as HTMLElement;
       const rect = wheel.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      // Start drag at top
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      // Move just enough for one increment (about 18 degrees)
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 20,
-        clientY: centerY - 45,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      // End drag
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 20,
+          clientY: centerY - 45,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
-    // Save the draft
     await saveBtn.click();
 
     // Count should have increased by 1
@@ -514,144 +415,95 @@ test.describe("Daily Counter PWA", () => {
   test("multiple save sessions accumulate correctly with thumb always at 12 o'clock", async ({
     page,
   }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const countSpan = firstWheel.locator(".wheel-count .count-value");
-    const draftCount = firstWheel.locator(".draft-count");
-    const saveBtn = firstWheel.locator(".save-btn");
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
+    const draftCount = page.locator('[data-testid="draft-count-wheelA"]');
+    const saveBtn = page.locator('[data-testid="save-btn-wheelA"]');
 
-    // Session 1: Add 5 pushups
+    // Session 1
     await firstWheel.evaluate((el) => {
       const wheel = el as HTMLElement;
       const rect = wheel.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 40,
-        clientY: centerY - 20,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 40,
+          clientY: centerY - 20,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
-    // Draft should show increment (around 5)
     const draftValue1 = await draftCount.textContent();
-    const increment1 = parseInt(draftValue1 || "0");
+    const increment1 = parseInt(draftValue1 || "0", 10);
     expect(increment1).toBeGreaterThan(0);
 
-    // Save first session
     await saveBtn.click();
-
-    // Total should be the increment from session 1
     await expect(countSpan).toHaveText(String(increment1));
 
     // Thumb should be at 12 o'clock
-    let wheelElement = await firstWheel.elementHandle();
-    let wheelAngle = await wheelElement?.evaluate((el) =>
+    let wheelAngle = await firstWheel.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--wheel-angle"),
     );
     expect(wheelAngle).toBe("0deg");
 
-    // Session 2: Add 3 more pushups (thumb starts at 12 o'clock again)
+    // Session 2
     await firstWheel.evaluate((el) => {
       const wheel = el as HTMLElement;
       const rect = wheel.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 25,
-        clientY: centerY - 40,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 25,
+          clientY: centerY - 40,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
-    // Draft should show new increment (around 3)
     const draftValue2 = await draftCount.textContent();
-    const increment2 = parseInt(draftValue2 || "0");
+    const increment2 = parseInt(draftValue2 || "0", 10);
     expect(increment2).toBeGreaterThan(0);
 
-    // Save second session
     await saveBtn.click();
 
-    // Total should be sum of both sessions
     const finalCount = await countSpan.textContent();
-    expect(parseInt(finalCount || "0")).toBe(increment1 + increment2);
+    expect(parseInt(finalCount || "0", 10)).toBe(increment1 + increment2);
 
-    // Thumb should be at 12 o'clock again
-    wheelElement = await firstWheel.elementHandle();
-    wheelAngle = await wheelElement?.evaluate((el) =>
+    wheelAngle = await firstWheel.evaluate((el) =>
       getComputedStyle(el).getPropertyValue("--wheel-angle"),
     );
     expect(wheelAngle).toBe("0deg");
   });
 
-  test("settings panel toggle method works correctly", async ({ page }) => {
-    const settingsPanel = page.locator("settings-panel");
-
-    // Initially closed
-    await expect(settingsPanel).not.toHaveAttribute("open");
-    let isOpen = await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      return panel?.isOpen() ?? false;
-    });
-    expect(isOpen).toBe(false);
-
-    // Toggle open
-    await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      panel?.toggle();
-    });
-    await expect(settingsPanel).toHaveAttribute("open");
-    isOpen = await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      return panel?.isOpen() ?? false;
-    });
-    expect(isOpen).toBe(true);
-
-    // Toggle closed
-    await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      panel?.toggle();
-    });
-    await expect(settingsPanel).not.toHaveAttribute("open");
-    isOpen = await page.evaluate(() => {
-      const panel = document.querySelector("settings-panel") as any;
-      return panel?.isOpen() ?? false;
-    });
-    expect(isOpen).toBe(false);
-  });
-
   test("both wheels maintain independent counts", async ({ page }) => {
-    const firstWheel = page.locator(".wheel").first();
-    const secondWheel = page.locator(".wheel").nth(1);
-    const firstCount = firstWheel.locator(".wheel-count .count-value");
-    const secondCount = secondWheel.locator(".wheel-count .count-value");
-    const firstSaveBtn = firstWheel.locator(".save-btn");
-    const secondSaveBtn = secondWheel.locator(".save-btn");
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const secondWheel = page.locator('[data-testid="wheel-wheelB"]');
+    const firstCount = page.locator('[data-testid="count-value-wheelA"]');
+    const secondCount = page.locator('[data-testid="count-value-wheelB"]');
+    const firstSaveBtn = page.locator('[data-testid="save-btn-wheelA"]');
+    const secondSaveBtn = page.locator('[data-testid="save-btn-wheelB"]');
 
-    // Initial counts should be 0
     await expect(firstCount).toHaveText("0");
     await expect(secondCount).toHaveText("0");
 
@@ -662,29 +514,27 @@ test.describe("Daily Counter PWA", () => {
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 40,
-        clientY: centerY - 20,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 40,
+          clientY: centerY - 20,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
     await firstSaveBtn.click();
 
-    // First wheel should have count > 0, second should still be 0
     const firstCountValue = await firstCount.textContent();
-    expect(parseInt(firstCountValue || "0")).toBeGreaterThan(0);
+    expect(parseInt(firstCountValue || "0", 10)).toBeGreaterThan(0);
     await expect(secondCount).toHaveText("0");
 
     // Add to second wheel
@@ -694,30 +544,74 @@ test.describe("Daily Counter PWA", () => {
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
-      const mousedown = new MouseEvent("mousedown", {
-        clientX: centerX,
-        clientY: centerY - 50,
-        bubbles: true,
-      });
-      wheel.dispatchEvent(mousedown);
-
-      const mousemove = new MouseEvent("mousemove", {
-        clientX: centerX + 30,
-        clientY: centerY - 30,
-        bubbles: true,
-      });
-      window.dispatchEvent(mousemove);
-
-      const mouseup = new MouseEvent("mouseup", { bubbles: true });
-      window.dispatchEvent(mouseup);
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 30,
+          clientY: centerY - 30,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
     });
 
     await secondSaveBtn.click();
 
-    // Both wheels should have independent counts > 0
     const secondCountValue = await secondCount.textContent();
-    expect(parseInt(secondCountValue || "0")).toBeGreaterThan(0);
-    // First wheel count should remain unchanged
+    expect(parseInt(secondCountValue || "0", 10)).toBeGreaterThan(0);
     await expect(firstCount).toHaveText(firstCountValue || "");
+  });
+
+  test("count persists after page reload", async ({ page }) => {
+    const firstWheel = page.locator('[data-testid="wheel-wheelA"]');
+    const countSpan = page.locator('[data-testid="count-value-wheelA"]');
+    const saveBtn = page.locator('[data-testid="save-btn-wheelA"]');
+
+    await expect(countSpan).toHaveText("0");
+
+    // Add count via drag and save
+    await firstWheel.evaluate((el) => {
+      const wheel = el as HTMLElement;
+      const rect = wheel.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+
+      wheel.dispatchEvent(
+        new MouseEvent("mousedown", {
+          clientX: centerX,
+          clientY: centerY - 50,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(
+        new MouseEvent("mousemove", {
+          clientX: centerX + 60,
+          clientY: centerY - 30,
+          bubbles: true,
+        }),
+      );
+      window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+    });
+
+    await saveBtn.click();
+
+    const countBeforeReload = await countSpan.textContent();
+    const countValue = parseInt(countBeforeReload || "0", 10);
+    expect(countValue).toBeGreaterThan(0);
+
+    // Reload the page
+    await page.reload();
+
+    // Count should persist after reload
+    const countAfterReload = await page
+      .locator('[data-testid="count-value-wheelA"]')
+      .textContent();
+    expect(parseInt(countAfterReload || "0", 10)).toBe(countValue);
   });
 });

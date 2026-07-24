@@ -13,10 +13,12 @@
 export class SettingsPanel extends HTMLElement {
   private panel: HTMLElement | null = null;
   private gripper: HTMLElement | null = null;
+  private abortController: AbortController;
 
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
+    this.abortController = new AbortController();
     this.render();
   }
 
@@ -26,11 +28,7 @@ export class SettingsPanel extends HTMLElement {
 
   attributeChangedCallback(name: string, oldValue: string, newValue: string) {
     if (name === "open" && this.panel) {
-      if (newValue !== null) {
-        this.panel.classList.add("open");
-      } else {
-        this.panel.classList.remove("open");
-      }
+      this.panel.classList.toggle("open", newValue !== null);
     }
   }
 
@@ -114,8 +112,8 @@ export class SettingsPanel extends HTMLElement {
         }
       </style>
 
-      <div class="settings">
-        <div class="settings-gripper"></div>
+      <div class="settings" data-testid="settings-panel">
+        <div class="settings-gripper" data-testid="settings-gripper"></div>
         <div class="settings-content">
           <p class="settings-help-text">Counters reset at midnight</p>
           <slot name="content"></slot>
@@ -130,36 +128,35 @@ export class SettingsPanel extends HTMLElement {
   private setupEventListeners() {
     if (!this.gripper || !this.panel) return;
 
+    const { signal } = this.abortController;
+
     // Gripper click to toggle
-    this.gripper.addEventListener("click", this.handleGripperClick);
+    this.gripper.addEventListener("click", this.handleGripperClick, { signal });
 
     // Swipe gestures
-    this.addGripperSwipeListener();
-    this.addSwipeUpListener();
+    this.addGripperSwipeListener(signal);
+    this.addSwipeUpListener(signal);
   }
 
   private removeEventListeners() {
-    if (!this.gripper) return;
-
-    this.gripper.removeEventListener("click", this.handleGripperClick);
+    // All event listeners are automatically removed via AbortController
+    this.abortController.abort();
   }
 
   private handleGripperClick = () => {
     if (!this.panel) return;
+    const willBeOpen = !this.panel.classList.contains("open");
     this.panel.classList.toggle("open");
-    this.updateOpenAttribute();
+    this.updateOpenAttribute(willBeOpen);
   };
 
-  private updateOpenAttribute() {
+  private updateOpenAttribute(isOpen?: boolean) {
     if (!this.panel) return;
-    if (this.panel.classList.contains("open")) {
-      this.setAttribute("open", "");
-    } else {
-      this.removeAttribute("open");
-    }
+    const open = isOpen ?? this.panel.classList.contains("open");
+    this.toggleAttribute("open", open);
   }
 
-  private addGripperSwipeListener() {
+  private addGripperSwipeListener(signal: AbortSignal) {
     if (!this.gripper || !this.panel) return;
 
     let startY = 0;
@@ -178,11 +175,11 @@ export class SettingsPanel extends HTMLElement {
 
       if (!isOpen && delta > threshold) {
         this.panel!.classList.add("open");
-        this.updateOpenAttribute();
+        this.updateOpenAttribute(true);
         startY = 0;
       } else if (isOpen && delta < -threshold) {
         this.panel!.classList.remove("open");
-        this.updateOpenAttribute();
+        this.updateOpenAttribute(false);
         startY = 0;
       }
     };
@@ -191,12 +188,12 @@ export class SettingsPanel extends HTMLElement {
       startY = 0;
     };
 
-    this.gripper.addEventListener("touchstart", onTouchStart);
-    this.gripper.addEventListener("touchmove", onTouchMove);
-    this.gripper.addEventListener("touchend", onTouchEnd);
+    this.gripper.addEventListener("touchstart", onTouchStart, { signal });
+    this.gripper.addEventListener("touchmove", onTouchMove, { signal });
+    this.gripper.addEventListener("touchend", onTouchEnd, { signal });
   }
 
-  private addSwipeUpListener() {
+  private addSwipeUpListener(signal: AbortSignal) {
     let startY = 0;
     const threshold = 80;
     const edgeZone = 60;
@@ -218,34 +215,35 @@ export class SettingsPanel extends HTMLElement {
       const delta = startY - touch.clientY;
       if (delta > threshold) {
         this.panel.classList.add("open");
-        this.updateOpenAttribute();
+        this.updateOpenAttribute(true);
         startY = 0;
       }
     };
 
-    document.addEventListener("touchstart", onTouchStart);
-    document.addEventListener("touchmove", onTouchMove);
+    document.addEventListener("touchstart", onTouchStart, { signal });
+    document.addEventListener("touchmove", onTouchMove, { signal });
   }
 
   // Public API
   public open() {
     if (this.panel) {
       this.panel.classList.add("open");
-      this.updateOpenAttribute();
+      this.updateOpenAttribute(true);
     }
   }
 
   public close() {
     if (this.panel) {
       this.panel.classList.remove("open");
-      this.updateOpenAttribute();
+      this.updateOpenAttribute(false);
     }
   }
 
   public toggle() {
     if (this.panel) {
+      const willBeOpen = !this.panel.classList.contains("open");
       this.panel.classList.toggle("open");
-      this.updateOpenAttribute();
+      this.updateOpenAttribute(willBeOpen);
     }
   }
 

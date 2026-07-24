@@ -1,104 +1,163 @@
 import { increment, getCount, reset } from "../utils/counter";
 
+// Storage keys for wheel settings
+const getEmojiKey = (id: string) => `wheel-${id}-emoji`;
+const getTargetKey = (id: string) => `wheel-${id}-target`;
+
+interface WheelElements {
+  countSpan: HTMLSpanElement;
+  targetSpan: HTMLSpanElement;
+  thumb: HTMLElement;
+  emojiDiv: HTMLElement;
+  countDiv: HTMLElement;
+  draftDisplay: HTMLElement;
+  saveButton: HTMLButtonElement;
+  draftCountEl: HTMLDivElement;
+}
+
+interface DragState {
+  isDragging: boolean;
+  lastAngle: number;
+  rawAngle: number;
+}
+
+interface DraftState {
+  increment: number;
+  isActive: boolean;
+  baseCount: number;
+}
+
 export class Wheel {
   /** Root element of the wheel */
   public element: HTMLElement;
 
   private id: string;
   private emoji: string;
-  private step: number;
   private target: number;
-  // These elements are created in `createWheel()` and assigned before use.
-  // Use definite assignment assertions to satisfy the TypeScript compiler.
-  private countSpan!: HTMLSpanElement;
-  private targetSpan!: HTMLSpanElement;
-  private thumb!: HTMLElement;
-  private isDragging = false;
-  private lastAngle = 0; // raw angle for delta calculation
-  private rawAngle = 0; // unwrapped angle for continuous rotation tracking
+  private repsPerRotation: number;
+  private elements: WheelElements;
+  private dragState: DragState;
+  private draftState: DraftState;
+  private abortController: AbortController;
 
   // Derive visual angle from raw angle
   private get currentAngle(): number {
-    return ((this.rawAngle % 360) + 360) % 360;
+    return ((this.dragState.rawAngle % 360) + 360) % 360;
   }
-
-  // Draft mode state for pending increments
-  private draftIncrement = 0;
-  private isDraftMode = false;
-  private baseCount = 0;
-  private emojiDiv!: HTMLElement;
-  private countDiv!: HTMLElement;
-  private draftDisplay!: HTMLElement;
-  private saveButton!: HTMLButtonElement;
-  private draftCountEl!: HTMLDivElement;
 
   constructor(
     id: string,
-    emoji: string = "🔄",
-    step: number = 20,
-    target: number = 100,
+    defaultEmoji: string = "🔄",
+    defaultTarget: number = 100,
+    repsPerRotation: number = 20,
   ) {
     this.id = id;
-    this.emoji = emoji;
-    this.step = step;
-    this.target = target;
+    this.emoji = localStorage.getItem(getEmojiKey(id)) ?? defaultEmoji;
+    this.target =
+      parseInt(
+        localStorage.getItem(getTargetKey(id)) ?? String(defaultTarget),
+        10,
+      ) || defaultTarget;
+    this.repsPerRotation = repsPerRotation;
+    this.abortController = new AbortController();
+    this.dragState = { isDragging: false, lastAngle: 0, rawAngle: 0 };
+    this.draftState = { increment: 0, isActive: false, baseCount: 0 };
+    this.elements = this.createWheelElements();
     this.element = this.createWheel();
     this.updateCount();
+  }
+
+  /** Clean up event listeners when wheel is destroyed */
+  public destroy(): void {
+    this.abortController.abort();
+  }
+
+  /** Create element references (separated from DOM creation for proper initialization) */
+  private createWheelElements(): WheelElements {
+    return {
+      countSpan: document.createElement("span"),
+      targetSpan: document.createElement("span"),
+      thumb: document.createElement("div"),
+      emojiDiv: document.createElement("div"),
+      countDiv: document.createElement("div"),
+      draftDisplay: document.createElement("div"),
+      saveButton: document.createElement("button"),
+      draftCountEl: document.createElement("div"),
+    };
   }
 
   /** Create the DOM structure for the wheel */
   private createWheel(): HTMLElement {
     const container = document.createElement("div");
     container.className = "wheel";
+    container.setAttribute("data-testid", `wheel-${this.id}`);
 
     // Emoji centre
-    this.emojiDiv = document.createElement("div");
-    this.emojiDiv.className = "wheel-emoji";
-    this.emojiDiv.textContent = this.emoji;
-    container.appendChild(this.emojiDiv);
+    this.elements.emojiDiv.className = "wheel-emoji";
+    this.elements.emojiDiv.textContent = this.emoji;
+    this.elements.emojiDiv.setAttribute(
+      "data-testid",
+      `wheel-emoji-${this.id}`,
+    );
+    container.appendChild(this.elements.emojiDiv);
 
     // Count display with target (e.g., "7/100")
-    this.countDiv = document.createElement("div");
-    this.countDiv.className = "wheel-count";
-    this.countSpan = document.createElement("span");
-    this.countSpan.className = "count-value";
-    this.targetSpan = document.createElement("span");
-    this.targetSpan.className = "target-value";
-    this.countDiv.appendChild(this.countSpan);
-    this.countDiv.appendChild(document.createTextNode("/"));
-    this.countDiv.appendChild(this.targetSpan);
-    container.appendChild(this.countDiv);
+    this.elements.countDiv.className = "wheel-count";
+    this.elements.countSpan.className = "count-value";
+    this.elements.countSpan.setAttribute(
+      "data-testid",
+      `count-value-${this.id}`,
+    );
+    this.elements.targetSpan.className = "target-value";
+    this.elements.targetSpan.setAttribute(
+      "data-testid",
+      `target-value-${this.id}`,
+    );
+    this.elements.countDiv.appendChild(this.elements.countSpan);
+    this.elements.countDiv.appendChild(document.createTextNode("/"));
+    this.elements.countDiv.appendChild(this.elements.targetSpan);
+    container.appendChild(this.elements.countDiv);
 
     // Draft mode display (hidden by default)
-    this.draftDisplay = document.createElement("div");
-    this.draftDisplay.className = "wheel-draft-display";
-    this.draftDisplay.style.display = "none";
-    this.draftCountEl = document.createElement("div");
-    this.draftCountEl.className = "draft-count";
-    this.draftDisplay.appendChild(this.draftCountEl);
+    this.elements.draftDisplay.className = "wheel-draft-display";
+    this.elements.draftDisplay.style.display = "none";
+    this.elements.draftDisplay.setAttribute(
+      "data-testid",
+      `draft-display-${this.id}`,
+    );
+    this.elements.draftCountEl.className = "draft-count";
+    this.elements.draftCountEl.setAttribute(
+      "data-testid",
+      `draft-count-${this.id}`,
+    );
+    this.elements.draftDisplay.appendChild(this.elements.draftCountEl);
 
     // Save button
-    this.saveButton = document.createElement("button");
-    this.saveButton.className = "save-btn";
-    this.saveButton.textContent = "Save";
-    this.saveButton.addEventListener("click", (e) => {
+    this.elements.saveButton.className = "save-btn";
+    this.elements.saveButton.textContent = "Save";
+    this.elements.saveButton.setAttribute("data-testid", `save-btn-${this.id}`);
+    this.elements.saveButton.addEventListener("click", (e) => {
       e.stopPropagation();
       this.commitDraft();
     });
-    this.draftDisplay.appendChild(this.saveButton);
-    container.appendChild(this.draftDisplay);
+    this.elements.draftDisplay.appendChild(this.elements.saveButton);
+    container.appendChild(this.elements.draftDisplay);
 
     // Thumb element (placed on circumference)
-    this.thumb = document.createElement("div");
-    this.thumb.className = "wheel-thumb";
-    container.appendChild(this.thumb);
+    this.elements.thumb.className = "wheel-thumb";
+    this.elements.thumb.setAttribute("data-testid", `wheel-thumb-${this.id}`);
+    container.appendChild(this.elements.thumb);
 
     // Click outside to cancel draft mode
-    document.addEventListener("click", (e) => {
-      if (this.isDraftMode && !container.contains(e.target as Node)) {
-        this.exitDraftMode();
-      }
-    });
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (this.draftState.isActive && !container.contains(e.target as Node)) {
+          this.exitDraftMode();
+        }
+      },
+      { signal: this.abortController.signal },
+    );
 
     // Drag handling (mouse & touch)
     const getCoords = (e: MouseEvent | TouchEvent): [number, number] =>
@@ -107,45 +166,56 @@ export class Wheel {
         : [e.clientX, e.clientY];
 
     const startDrag = (clientX: number, clientY: number) => {
-      this.isDragging = true;
-      this.lastAngle = this._calcAngle(clientX, clientY, container);
-      if (!this.isDraftMode) this.enterDraftMode();
+      this.dragState.isDragging = true;
+      this.dragState.lastAngle = this.calcAngle(clientX, clientY, container);
+      if (!this.draftState.isActive) this.enterDraftMode();
     };
 
     const onMove = (clientX: number, clientY: number) => {
-      if (!this.isDragging) return;
-      const newWrappedAngle = this._calcAngle(clientX, clientY, container);
-      const stepDeg = 18; // 360 / 20
+      if (!this.dragState.isDragging) return;
+      const newWrappedAngle = this.calcAngle(clientX, clientY, container);
+      const stepDeg = 360 / this.repsPerRotation;
 
-      let delta = newWrappedAngle - this.lastAngle;
+      let delta = newWrappedAngle - this.dragState.lastAngle;
       if (delta > 180) delta -= 360;
       if (delta < -180) delta += 360;
 
-      this.rawAngle += delta;
+      this.dragState.rawAngle += delta;
       const increments =
-        Math.trunc(this.rawAngle / stepDeg) -
-        Math.trunc((this.rawAngle - delta) / stepDeg);
+        Math.floor(this.dragState.rawAngle / stepDeg) -
+        Math.floor((this.dragState.rawAngle - delta) / stepDeg);
 
       if (increments !== 0) {
-        this.draftIncrement += increments * this.step;
-        this._updateVisuals(container);
+        this.draftState.increment += increments;
+        this.updateVisuals(container);
         this.updateDraftDisplay();
       }
 
-      this.lastAngle = newWrappedAngle;
+      this.dragState.lastAngle = newWrappedAngle;
     };
 
-    const endDrag = () => (this.isDragging = false);
+    const endDrag = () => (this.dragState.isDragging = false);
 
-    container.addEventListener("mousedown", (e) => startDrag(...getCoords(e)));
-    container.addEventListener("touchstart", (e) => startDrag(...getCoords(e)));
-    window.addEventListener("mousemove", (e) => onMove(...getCoords(e)));
-    window.addEventListener("touchmove", (e) => onMove(...getCoords(e)));
-    window.addEventListener("mouseup", endDrag);
-    window.addEventListener("touchend", endDrag);
+    const { signal } = this.abortController;
+    container.addEventListener("mousedown", (e) => startDrag(...getCoords(e)), {
+      signal,
+    });
+    container.addEventListener(
+      "touchstart",
+      (e) => startDrag(...getCoords(e)),
+      { signal },
+    );
+    window.addEventListener("mousemove", (e) => onMove(...getCoords(e)), {
+      signal,
+    });
+    window.addEventListener("touchmove", (e) => onMove(...getCoords(e)), {
+      signal,
+    });
+    window.addEventListener("mouseup", endDrag, { signal });
+    window.addEventListener("touchend", endDrag, { signal });
 
     // Initial visual state
-    this._updateVisuals(container);
+    this.updateVisuals(container);
 
     return container;
   }
@@ -153,50 +223,46 @@ export class Wheel {
   /** Refresh the displayed count from storage */
   private updateCount() {
     const current = getCount(this.id);
-    this.countSpan.textContent = String(current);
-    this.targetSpan.textContent = String(this.target);
+    this.elements.countSpan.textContent = String(current);
+    this.elements.targetSpan.textContent = String(this.target);
   }
 
   /** Enter draft mode - hide emoji/count, show draft display */
   private enterDraftMode() {
-    this.isDraftMode = true;
-    this.baseCount = getCount(this.id);
-    this.draftIncrement = 0;
-    // Always start thumb at 12 o'clock for new draft session
-    this.rawAngle = 0;
-    this._updateVisuals(this.element);
-    this.emojiDiv.style.display = "none";
-    this.countDiv.style.display = "none";
-    this.draftDisplay.style.display = "flex";
+    this.draftState.isActive = true;
+    this.draftState.baseCount = getCount(this.id);
+    this.draftState.increment = 0;
+    this.dragState.rawAngle = 0;
+    this.updateVisuals(this.element);
+    this.elements.emojiDiv.style.display = "none";
+    this.elements.countDiv.style.display = "none";
+    this.elements.draftDisplay.style.display = "flex";
     this.updateDraftDisplay();
   }
 
   /** Exit draft mode - show emoji/count, hide draft display */
   private exitDraftMode() {
-    this.isDraftMode = false;
-    this.draftIncrement = 0;
-    this.emojiDiv.style.display = "";
-    this.countDiv.style.display = "";
-    this.draftDisplay.style.display = "none";
-    // Always reset thumb to 12 o'clock when exiting draft mode
-    this.rawAngle = 0;
-    this._updateVisuals(this.element);
+    this.draftState.isActive = false;
+    this.draftState.increment = 0;
+    this.elements.emojiDiv.style.display = "";
+    this.elements.countDiv.style.display = "";
+    this.elements.draftDisplay.style.display = "none";
+    this.dragState.rawAngle = 0;
+    this.updateVisuals(this.element);
     this.updateCount();
   }
 
   /** Update the draft display with current draft increment */
   private updateDraftDisplay() {
-    this.draftCountEl.textContent = String(this.draftIncrement);
+    this.elements.draftCountEl.textContent = String(this.draftState.increment);
   }
 
   /** Commit the draft increment to storage */
   private commitDraft() {
-    if (this.draftIncrement !== 0) {
-      increment(this.draftIncrement, this.id);
+    if (this.draftState.increment !== 0) {
+      increment(this.draftState.increment, this.id);
     }
     this.exitDraftMode();
-    // Reset thumb to 12 o'clock after saving (rawAngle already 0 from exitDraftMode)
-    this._updateVisuals(this.element);
   }
 
   /** Get the current target value */
@@ -204,56 +270,58 @@ export class Wheel {
     return this.target;
   }
 
-  /** Set a new target value */
+  /** Set a new target value and persist to localStorage */
   public setTarget(target: number): void {
     this.target = target;
-    this.targetSpan.textContent = String(this.target);
+    this.elements.targetSpan.textContent = String(this.target);
+    localStorage.setItem(getTargetKey(this.id), String(target));
+  }
+
+  /** Get the current emoji */
+  public getEmoji(): string {
+    return this.emoji;
+  }
+
+  /** Set a new emoji and persist to localStorage */
+  public setEmoji(emoji: string): void {
+    this.emoji = emoji;
+    this.elements.emojiDiv.textContent = emoji;
+    localStorage.setItem(getEmojiKey(this.id), emoji);
   }
 
   /** Public method to reset this wheel's counter */
   public reset(): void {
     reset(this.id);
-    this.rawAngle = 0;
-    this._updateVisuals(this.element);
+    this.dragState.rawAngle = 0;
+    this.updateVisuals(this.element);
     this.updateCount();
   }
 
   /** Calculate angle (0‑360) from center of element to pointer */
-  private _calcAngle(
-    clientX: number,
-    clientY: number,
-    el: HTMLElement,
-  ): number {
+  private calcAngle(clientX: number, clientY: number, el: HTMLElement): number {
     const rect = el.getBoundingClientRect();
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     const dx = clientX - cx;
     const dy = clientY - cy;
-    let angle = Math.atan2(dy, dx) * (180 / Math.PI); // -180 to 180
-    angle = (angle + 90) % 360; // make 0 at top
+    let angle = Math.atan2(dy, dx) * (180 / Math.PI);
+    angle = (angle + 90) % 360;
     if (angle < 0) angle += 360;
     return angle;
   }
 
   /** Update wheel background gradient and thumb position */
-  private _updateVisuals(el: HTMLElement): void {
-    // Update the CSS variable that controls the wheel angle. The actual colors are
-    // defined via CSS variables (--progress-color and --bg-color) which can be
-    // overridden for dark mode.
+  private updateVisuals(el: HTMLElement): void {
     el.style.setProperty("--wheel-angle", `${this.currentAngle}deg`);
 
-    // Position the thumb. Guard against zero dimensions which can happen before the
-    // element is attached to the DOM (clientWidth/height would be 0). In that case we
-    // let the default CSS positioning place the thumb at 12 o'clock.
-    // Account for the ring thickness (16px) when calculating radius.
     const ringThickness = 16;
     const radius = el.clientWidth / 2 - ringThickness / 2;
     if (radius > 0) {
-      const rad = ((this.currentAngle - 90) * Math.PI) / 180; // convert to radians, offset so 0deg = top
+      const rad = ((this.currentAngle - 90) * Math.PI) / 180;
       const cx = el.clientWidth / 2 + radius * Math.cos(rad);
       const cy = el.clientHeight / 2 + radius * Math.sin(rad);
-      this.thumb.style.left = `${cx}px`;
-      this.thumb.style.top = `${cy}px`;
+      this.elements.thumb.style.left = `${cx}px`;
+      this.elements.thumb.style.top = `${cy}px`;
     }
   }
 }

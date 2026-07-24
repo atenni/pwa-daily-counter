@@ -8,13 +8,19 @@ import { SettingsPanel } from "./components/SettingsPanel";
 export class App {
   public element: HTMLElement;
 
-  private wheelA!: Wheel;
-  private wheelB!: Wheel;
-  private settingsPanel!: SettingsPanel;
+  private wheelA: Wheel;
+  private wheelB: Wheel;
+  private settingsPanel: SettingsPanel;
 
   constructor() {
     this.element = document.createElement("div");
     this.element.className = "app";
+
+    // Create wheels first (before rendering)
+    this.wheelA = new Wheel("wheelA");
+    this.wheelB = new Wheel("wheelB");
+    this.settingsPanel = new SettingsPanel();
+
     this.render();
   }
 
@@ -23,26 +29,17 @@ export class App {
     const wheelsContainer = document.createElement("div");
     wheelsContainer.className = "wheels-container";
 
-    // Create wheels with default emojis and unique ids (step=1 for fine-grained control)
-    this.wheelA = new Wheel("wheelA", "🏋️‍♂️", 1);
-    this.wheelB = new Wheel("wheelB", "🤸‍♀️", 1);
     wheelsContainer.appendChild(this.wheelA.element);
     wheelsContainer.appendChild(this.wheelB.element);
 
     // Create wheel control rows (emoji + reset in single row)
-    const topWheelRow = this.createWheelControlRow(
-      "Top Wheel",
-      this.wheelA,
-      this.wheelA.element,
-    );
+    const topWheelRow = this.createWheelControlRow("Top Wheel", this.wheelA);
     const bottomWheelRow = this.createWheelControlRow(
       "Bottom Wheel",
       this.wheelB,
-      this.wheelB.element,
     );
 
-    // Create settings panel web component
-    this.settingsPanel = new SettingsPanel();
+    // Add controls to settings panel
     const contentSlot = document.createElement("div");
     contentSlot.setAttribute("slot", "content");
     contentSlot.appendChild(topWheelRow);
@@ -55,11 +52,7 @@ export class App {
   }
 
   /** Create a row with emoji input, target input, and reset button for a wheel */
-  private createWheelControlRow(
-    labelText: string,
-    wheel: Wheel,
-    wheelEl: HTMLElement,
-  ): HTMLElement {
+  private createWheelControlRow(labelText: string, wheel: Wheel): HTMLElement {
     const row = document.createElement("div");
     row.className = "wheel-control-row";
 
@@ -76,13 +69,9 @@ export class App {
     const input = document.createElement("input");
     input.type = "text";
     input.maxLength = 2;
-    input.value = wheelEl.querySelector(".wheel-emoji")?.textContent || "";
+    input.value = wheel.getEmoji();
     input.addEventListener("input", () => {
-      const newEmoji = input.value || "🔄";
-      const emojiDiv = wheelEl.querySelector(".wheel-emoji");
-      if (emojiDiv) {
-        emojiDiv.textContent = newEmoji;
-      }
+      wheel.setEmoji(input.value || "🔄");
     });
 
     // Target input
