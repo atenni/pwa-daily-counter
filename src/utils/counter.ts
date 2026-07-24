@@ -4,26 +4,29 @@
  * Provides functions to get, increment, reset, and automatically reset at midnight.
  */
 
-// Base key for the default counter (kept for backward compatibility)
+// Base key for wheel counters
 const STORAGE_KEY = "daily-counter";
 
-/** Helper to build a storage key for a specific wheel */
-function keyFor(id: string): string {
-  return `${STORAGE_KEY}-${id}`;
-}
-
-/** Get the current count from localStorage. Returns 0 if not present or invalid. */
+/** Get the current count from localStorage. Returns 0 if not present, invalid, or on error. */
 export function getCount(id?: string): number {
-  const key = id ? `${STORAGE_KEY}-${id}` : STORAGE_KEY;
-  const raw = localStorage.getItem(key);
-  const parsed = Number(raw);
-  return Number.isNaN(parsed) ? 0 : parsed;
+  try {
+    const key = id ? `${STORAGE_KEY}-${id}` : STORAGE_KEY;
+    const raw = localStorage.getItem(key);
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** Save the current count to localStorage. */
 export function saveToStorage(count: number, id?: string): void {
-  const key = id ? `${STORAGE_KEY}-${id}` : STORAGE_KEY;
-  localStorage.setItem(key, String(count));
+  try {
+    const key = id ? `${STORAGE_KEY}-${id}` : STORAGE_KEY;
+    localStorage.setItem(key, String(count));
+  } catch {
+    // Silently fail if localStorage is unavailable (private browsing, quota exceeded)
+  }
 }
 
 /** Increment the count by the given step and persist it. */
@@ -37,19 +40,30 @@ export function reset(id?: string): void {
   saveToStorage(0, id);
 }
 
+const LAST_RESET_KEY = "daily-counter-last-reset";
+
 /**
- * Set up an automatic midnight reset.
- * Checks every minute whether the date has changed since the last check.
+ * Get today's date in YYYY-MM-DD format (local time, not UTC).
  */
-export function startMidnightReset(): void {
-  let lastDate = new Date().getDate();
-  setInterval(() => {
-    const now = new Date();
-    const today = now.getDate();
-    if (today !== lastDate) {
-      // Day changed – reset counter
-      reset();
-      lastDate = today;
+function getTodayString(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+/**
+ * Check if this is the first open of a new day and reset counts if so.
+ * Should be called on app initialization.
+ * @param wheelIds - Array of wheel IDs to reset (e.g., ["wheelA", "wheelB"])
+ */
+export function checkDailyReset(wheelIds: string[]): void {
+  try {
+    const today = getTodayString();
+    const lastReset = localStorage.getItem(LAST_RESET_KEY);
+
+    if (lastReset !== today) {
+      wheelIds.forEach((id) => reset(id));
+      localStorage.setItem(LAST_RESET_KEY, today);
     }
-  }, 60_000); // check every minute
+  } catch {
+    // Silently fail if localStorage is unavailable
+  }
 }

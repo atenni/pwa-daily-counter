@@ -1,9 +1,10 @@
 import { App } from "./App";
-import { startMidnightReset } from "./utils/counter";
+import { checkDailyReset } from "./utils/counter";
 
-// Initialize the midnight reset timer
-// Initialize the midnight reset timer and enable dark mode by default
-startMidnightReset();
+// Check for daily reset on app initialization
+checkDailyReset(["wheelA", "wheelB"]);
+
+// Enable dark mode by default
 document.body.classList.add("dark");
 
 // Mount the application
