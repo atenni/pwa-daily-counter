@@ -60,13 +60,16 @@ export class SettingsPanel extends HTMLElement {
           background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
           border-top: 1px solid rgba(255, 255, 255, 0.1);
           border-radius: 24px 24px 0 0;
-          box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.15);
-          transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+          transition:
+            transform 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+            box-shadow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
           z-index: 100;
-        }
-
-        .settings.open {
-          transform: translateY(0);
+          }
+          
+          .settings.open {
+            transform: translateY(0);
+            box-shadow: 0 -8px 100px rgba(0, 0, 0, 0.75);
         }
 
         .settings-gripper {
@@ -100,9 +103,8 @@ export class SettingsPanel extends HTMLElement {
         .settings-help-text {
           text-align: center;
           font-size: 0.875rem;
-          color: #999;
+          color: #777;
           margin: 0;
-          font-style: italic;
         }
 
         ::slotted([slot="content"]) {
@@ -115,8 +117,8 @@ export class SettingsPanel extends HTMLElement {
       <div class="settings" data-testid="settings-panel">
         <div class="settings-gripper" data-testid="settings-gripper"></div>
         <div class="settings-content">
-          <p class="settings-help-text">Counters reset at midnight</p>
-          <slot name="content"></slot>
+        <slot name="content"></slot>
+        <p class="settings-help-text">Counters reset daily</p>
         </div>
       </div>
     `;
@@ -136,6 +138,9 @@ export class SettingsPanel extends HTMLElement {
     // Swipe gestures
     this.addGripperSwipeListener(signal);
     this.addSwipeUpListener(signal);
+
+    // Tap outside to close
+    this.addTapOutsideListener(signal);
   }
 
   private removeEventListeners() {
@@ -222,6 +227,26 @@ export class SettingsPanel extends HTMLElement {
 
     document.addEventListener("touchstart", onTouchStart, { signal });
     document.addEventListener("touchmove", onTouchMove, { signal });
+  }
+
+  private addTapOutsideListener(signal: AbortSignal) {
+    const onPointerDown = (e: PointerEvent) => {
+      if (!this.panel) return;
+
+      // Only handle when panel is open
+      if (!this.panel.classList.contains("open")) return;
+
+      // Check if click/touch is inside the panel using composedPath to pierce shadow DOM
+      const composedPath = e.composedPath();
+      const isInsidePanel = composedPath.includes(this.panel);
+
+      if (!isInsidePanel) {
+        this.close();
+      }
+    };
+
+    // Use pointerdown to catch both mouse and touch interactions early
+    document.addEventListener("pointerdown", onPointerDown, { signal });
   }
 
   // Public API

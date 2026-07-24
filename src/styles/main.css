@@ -149,17 +149,30 @@ body {
   border: 2px solid #fff;
 }
 
+/* Wheel control rows container - use CSS Grid for robust spacing */
+[slot="content"] {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  --row-padding-y: 1.25rem;
+}
+
 /* Wheel control row - label with emoji and reset in a row */
 .wheel-control-row {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  padding: 1rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: var(--row-padding-y) 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.wheel-control-row:first-of-type {
+  padding-top: calc(var(--row-padding-y) / 2);
 }
 
 .wheel-control-row:last-of-type {
   border-bottom: none;
+  padding-bottom: calc(var(--row-padding-y) / 2);
 }
 
 .wheel-control-row label {
