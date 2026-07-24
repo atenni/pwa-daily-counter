@@ -94,10 +94,6 @@ body {
   color: inherit; /* Inherits dimmed color from parent */
 }
 
-.wheel-emoji {
-  color: #fff;
-}
-
 /* Draft mode display - shown when dragging */
 .wheel-draft-display {
   position: absolute;
