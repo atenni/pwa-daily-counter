@@ -314,7 +314,7 @@ export class Wheel {
   private updateVisuals(el: HTMLElement): void {
     el.style.setProperty("--wheel-angle", `${this.currentAngle}deg`);
 
-    const ringThickness = 16;
+    const ringThickness = 24;
     const radius = el.clientWidth / 2 - ringThickness / 2;
     if (radius > 0) {
       const rad = ((this.currentAngle - 90) * Math.PI) / 180;

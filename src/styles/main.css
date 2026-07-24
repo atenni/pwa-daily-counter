@@ -57,7 +57,7 @@ body {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  padding: 16px; /* ring thickness - increased */
+  padding: 24px; /* ring thickness */
   background: conic-gradient(
     var(--progress-color) 0deg,
     var(--progress-color) var(--wheel-angle),
@@ -137,11 +137,11 @@ body {
 /* Thumb that the user drags around the wheel */
 .wheel-thumb {
   position: absolute;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   background: #3b82f6;
   border-radius: 50%;
-  top: 8px; /* half of ring thickness (16px) */
+  top: 12px; /* half of ring thickness (24px) */
   left: 50%;
   transform: translate(-50%, -50%);
   touch-action: none;
@@ -154,7 +154,7 @@ body {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0;
-  --row-padding-y: 1.25rem;
+  --row-padding-y: 2rem;
 }
 
 /* Wheel control row - label with emoji and reset in a row */
@@ -163,7 +163,7 @@ body {
   flex-direction: column;
   gap: 0.75rem;
   padding: var(--row-padding-y) 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .wheel-control-row:first-of-type {
