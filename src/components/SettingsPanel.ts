@@ -54,7 +54,7 @@ export class SettingsPanel extends HTMLElement {
           left: 0;
           right: 0;
           bottom: 0;
-          transform: translateY(calc(100% - 40px));
+          transform: translateY(calc(100% - 60px));
           height: auto;
           max-height: 60vh;
           background: linear-gradient(180deg, #2a2a2a 0%, #1e1e1e 100%);
@@ -73,7 +73,7 @@ export class SettingsPanel extends HTMLElement {
         }
 
         .settings-gripper {
-          height: 40px;
+          height: 60px;
           width: 100%;
           cursor: pointer;
           display: flex;
